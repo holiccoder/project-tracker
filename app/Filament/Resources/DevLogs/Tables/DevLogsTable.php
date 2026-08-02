@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\DevLogs\Tables;
 
+use App\Enums\DevLogCategory;
+use App\Enums\DevLogStatus;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -20,20 +22,29 @@ class DevLogsTable
                     ->label('项目')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('task.title')
-                    ->label('关联任务')
-                    ->placeholder('—')
-                    ->limit(30),
+                TextColumn::make('status')
+                    ->label('状态')
+                    ->badge()
+                    ->formatStateUsing(fn (DevLogStatus $state): string => $state->label())
+                    ->color(fn (DevLogStatus $state): string => match ($state) {
+                        DevLogStatus::InProgress => 'warning',
+                        DevLogStatus::Completed => 'success',
+                    }),
+                TextColumn::make('category')
+                    ->label('分类')
+                    ->badge()
+                    ->formatStateUsing(fn (DevLogCategory $state): string => $state->label())
+                    ->color(fn (DevLogCategory $state): string => match ($state) {
+                        DevLogCategory::AgentIndependent => 'info',
+                        DevLogCategory::HumanAgentCollaboration => 'primary',
+                    }),
                 TextColumn::make('date')
+                    ->label('日期')
                     ->date()
                     ->sortable(),
                 TextColumn::make('content')
+                    ->label('内容')
                     ->limit(50),
-                TextColumn::make('hours_spent')
-                    ->label('工时')
-                    ->suffix(' h')
-                    ->placeholder('—')
-                    ->sortable(),
             ])
             ->defaultSort('date', 'desc')
             ->filters([
@@ -42,6 +53,12 @@ class DevLogsTable
                     ->relationship('project', 'name')
                     ->searchable()
                     ->preload(),
+                SelectFilter::make('status')
+                    ->label('状态')
+                    ->options(DevLogStatus::class),
+                SelectFilter::make('category')
+                    ->label('分类')
+                    ->options(DevLogCategory::class),
             ])
             ->recordActions([
                 EditAction::make(),

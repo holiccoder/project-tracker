@@ -29,11 +29,30 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
+        $pendingToken = $request->session()->pull('pending_invitation_token');
+
         $request->authenticate();
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $user = auth('web')->user();
+        $redirectUrl = route('dashboard', absolute: false);
+
+        if ($pendingToken) {
+            $invitation = \App\Models\ProjectInvitation::where('token', $pendingToken)->first();
+            if ($invitation && !$invitation->isExpired()) {
+                if ($user->email === $invitation->email) {
+                    $project = $invitation->project;
+                    if (!$project->hasMember($user)) {
+                        $project->members()->attach($user, ['role' => 'member']);
+                    }
+                    $invitation->delete();
+                    $redirectUrl = route('projects.show', $project->slug);
+                }
+            }
+        }
+
+        return redirect()->intended($redirectUrl);
     }
 
     /**

@@ -10,11 +10,17 @@ class AuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
+    }
+
     public function test_login_screen_can_be_rendered(): void
     {
         $response = $this->get('/login');
 
-        $response->assertStatus(200);
+        $response->assertRedirect('/');
     }
 
     public function test_users_can_authenticate_using_the_login_screen(): void

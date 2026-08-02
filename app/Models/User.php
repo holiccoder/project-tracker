@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'remark'])]
+#[Fillable(['name', 'email', 'password', 'remark', 'wechat', 'phone'])]
 #[Hidden(['password', 'remember_token', 'remark'])]
 class User extends Authenticatable
 {
@@ -24,7 +24,7 @@ class User extends Authenticatable
     public function projects(): BelongsToMany
     {
         return $this->belongsToMany(Project::class, 'project_user')
-            ->withPivot('role')
+            ->withPivot(['role', 'can_view_price'])
             ->withTimestamps();
     }
 

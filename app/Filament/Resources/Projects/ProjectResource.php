@@ -10,6 +10,8 @@ use App\Filament\Resources\Projects\RelationManagers\DevLogsRelationManager;
 use App\Filament\Resources\Projects\RelationManagers\IssuesRelationManager;
 use App\Filament\Resources\Projects\RelationManagers\MembersRelationManager;
 use App\Filament\Resources\Projects\RelationManagers\TasksRelationManager;
+use App\Filament\Resources\Projects\RelationManagers\PaymentsRelationManager;
+use App\Filament\Resources\Projects\RelationManagers\InvitationsRelationManager;
 use App\Filament\Resources\Projects\Schemas\ProjectForm;
 use App\Filament\Resources\Projects\Tables\ProjectsTable;
 use App\Models\Project;
@@ -23,7 +25,15 @@ class ProjectResource extends Resource
 {
     protected static ?string $model = Project::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static ?string $navigationLabel = '项目';
+
+    protected static ?string $pluralModelLabel = '项目';
+
+    protected static ?string $modelLabel = '项目';
+
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBriefcase;
+
+    protected static ?int $navigationSort = 1;
 
     protected static ?string $recordTitleAttribute = 'name';
 
@@ -45,6 +55,8 @@ class ProjectResource extends Resource
             DevLogsRelationManager::class,
             ContractsRelationManager::class,
             IssuesRelationManager::class,
+            PaymentsRelationManager::class,
+            InvitationsRelationManager::class,
         ];
     }
 

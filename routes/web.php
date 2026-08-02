@@ -1,7 +1,10 @@
 <?php
 
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\ContractController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\InvitationController;
+use App\Http\Controllers\IssueController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
@@ -10,12 +13,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
+    return Inertia::render('Welcome');
 });
 
 Route::middleware(['auth:web', 'verified'])->group(function () {
@@ -29,13 +27,28 @@ Route::middleware(['auth:web', 'verified'])->group(function () {
     Route::post('/projects/{project}/tasks', [TaskController::class, 'store'])
         ->scopeBindings()
         ->name('projects.tasks.store');
+    Route::get('/projects/{project}/tasks/{task}/attachments/{path}', [TaskController::class, 'downloadAttachment'])
+        ->where('path', '.*')
+        ->scopeBindings()
+        ->name('projects.tasks.attachments.download');
     Route::patch('/tasks/{task}/status', [TaskController::class, 'updateStatus'])
         ->name('tasks.status.update');
 
     Route::get('/projects/{project}/contracts/{contract}/download', [ContractController::class, 'download'])
         ->scopeBindings()
         ->name('projects.contracts.download');
+
+    Route::post('/tasks/{task}/comments', [CommentController::class, 'store'])
+        ->name('tasks.comments.store');
 });
+
+Route::get('/projects/{project}/issues/{issue}/attachment', [IssueController::class, 'downloadAttachment'])
+    ->scopeBindings()
+    ->middleware('auth:web,admin')
+    ->name('projects.issues.attachment.download');
+
+Route::get('/projects/invite/{token}', [InvitationController::class, 'accept'])
+    ->name('projects.invite.accept');
 
 Route::middleware('auth:web')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -44,3 +57,6 @@ Route::middleware('auth:web')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+Route::get('/login', fn () => redirect('/'));
+Route::get('/register', fn () => redirect('/'));

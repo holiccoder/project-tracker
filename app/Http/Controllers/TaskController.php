@@ -9,6 +9,7 @@ use App\Models\Task;
 use App\Support\ClientData;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,7 +21,7 @@ class TaskController extends Controller
     {
         $this->authorize('view', $task);
 
-        $task->load('creator');
+        $task->load(['creator', 'comments.author']);
 
         return Inertia::render('Projects/Tasks/Show', [
             'project' => [
@@ -40,17 +41,47 @@ class TaskController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'priority' => ['required', Rule::enum(TaskPriority::class)],
-            'due_date' => ['nullable', 'date'],
+            'attachments' => ['nullable', 'array'],
+            'attachments.*' => ['file', 'max:10240'],
         ]);
 
-        $project->tasks()->create([
-            ...$validated,
+        $attachmentPaths = [];
+
+        if (! empty($validated['attachments'])) {
+            foreach ($validated['attachments'] as $file) {
+                $attachmentPaths[] = $file->store('task-attachments', 'public');
+            }
+        }
+
+        $task = $project->tasks()->create([
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
+            'priority' => $validated['priority'],
+            'status' => TaskStatus::Pending->value,
             'created_by' => $request->user()->id,
+            'attachments' => $attachmentPaths ?: null,
         ]);
+
+        $admins = \App\Models\Admin::all();
+        \Illuminate\Support\Facades\Notification::send($admins, new \App\Notifications\TaskDelegatedNotification($task));
 
         return redirect()
             ->route('projects.show', $project)
             ->with('success', '任务已委派');
+    }
+
+    public function downloadAttachment(Request $request, Project $project, Task $task, string $path)
+    {
+        $this->authorize('view', $task);
+
+        abort_unless($task->project_id === $project->id, 404);
+        abort_unless(in_array($path, $task->attachments ?? [], true), 404);
+
+        if (! Storage::disk('public')->exists($path)) {
+            abort(404, '附件不存在');
+        }
+
+        return Storage::disk('public')->download($path, basename($path));
     }
 
     public function updateStatus(Request $request, Task $task): RedirectResponse
@@ -86,6 +117,11 @@ class TaskController extends Controller
 
         try {
             $task->transitionTo($status, $validated['reject_reason'] ?? null);
+
+            $user = auth('web')->user();
+            if ($task->creator && (!$user || $user->id !== $task->creator->id)) {
+                $task->creator->notify(new \App\Notifications\TaskStatusChangedNotification($task));
+            }
         } catch (InvalidArgumentException $e) {
             return redirect()->back()->with('error', $e->getMessage());
         }

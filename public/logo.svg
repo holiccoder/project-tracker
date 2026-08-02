@@ -1,0 +1,25 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logo-title logo-desc">
+  <title id="logo-title">项目协作平台 Logo</title>
+  <desc id="logo-desc">一个带有项目清单和完成标记的蓝靛色项目管理图标</desc>
+  <defs>
+    <linearGradient id="logo-gradient" x1="16" y1="12" x2="112" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+    <filter id="logo-shadow" x="4" y="4" width="120" height="120" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#1E1B4B" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <rect x="12" y="12" width="104" height="104" rx="28" fill="url(#logo-gradient)" filter="url(#logo-shadow)"/>
+  <path d="M38 39.5C38 35.91 40.91 33 44.5 33H83.5C87.09 33 90 35.91 90 39.5V88.5C90 92.09 87.09 95 83.5 95H44.5C40.91 95 38 92.09 38 88.5V39.5Z" fill="white" fill-opacity="0.97"/>
+  <path d="M38 48H90" stroke="#C7D2FE" stroke-width="4"/>
+  <path d="M48 41H61" stroke="#6366F1" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="48" cy="61" r="4" fill="#4F46E5"/>
+  <path d="M60 61H79" stroke="#A5B4FC" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="48" cy="75" r="4" fill="#4F46E5"/>
+  <path d="M60 75H76" stroke="#A5B4FC" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="48" cy="87" r="4" fill="#22C55E"/>
+  <path d="M46.5 87L48 88.5L51 85.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M96 25L98 29L102 31L98 33L96 37L94 33L90 31L94 29L96 25Z" fill="#FDE68A"/>
+</svg>

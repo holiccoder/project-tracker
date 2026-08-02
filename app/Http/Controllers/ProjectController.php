@@ -19,9 +19,11 @@ class ProjectController extends Controller
         $project->load([
             'members',
             'tasks.creator',
-            'devLogs.task',
+            'tasks.comments.author',
+            'devLogs',
             'issues',
             'contracts',
+            'payments',
         ]);
 
         return Inertia::render('Projects/Show', [
@@ -42,6 +44,13 @@ class ProjectController extends Controller
             'contracts' => $project->contracts->map(
                 fn ($contract) => ClientData::contract($contract),
             )->values()->all(),
+            'payments' => $project->canViewPriceFor($user)
+                ? $project->payments
+                    ->sortByDesc('date')
+                    ->values()
+                    ->map(fn ($payment) => ClientData::payment($payment))
+                    ->all()
+                : [],
         ]);
     }
 }

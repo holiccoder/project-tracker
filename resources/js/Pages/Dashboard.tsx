@@ -1,11 +1,13 @@
 import Badge from '@/Components/Badge';
 import FlashMessage from '@/Components/FlashMessage';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { useLanguage } from '@/lib/i18n';
 import { formatMoney } from '@/lib/money';
 import { ProjectSummary } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 
 function ProjectCard({ project }: { project: ProjectSummary }) {
+    const { t } = useLanguage();
     const progress =
         project.tasks_total > 0
             ? Math.round((project.tasks_done / project.tasks_total) * 100)
@@ -21,7 +23,7 @@ function ProjectCard({ project }: { project: ProjectSummary }) {
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                         {project.name}
                     </h3>
-                    <Badge color={project.status}>{project.status_label}</Badge>
+                    <Badge color={project.status}>{t(project.status_label)}</Badge>
                 </div>
 
                 {project.description && (
@@ -30,10 +32,11 @@ function ProjectCard({ project }: { project: ProjectSummary }) {
                     </p>
                 )}
 
-                <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
+                {project.can_view_price && (
+                    <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
                     <div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                            总额
+                            {t('总额')}
                         </div>
                         <div className="font-medium text-gray-900 dark:text-gray-100">
                             {formatMoney(project.amount)}
@@ -41,7 +44,7 @@ function ProjectCard({ project }: { project: ProjectSummary }) {
                     </div>
                     <div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                            已付
+                            {t('已付')}
                         </div>
                         <div className="font-medium text-gray-900 dark:text-gray-100">
                             {formatMoney(project.paid_amount)}
@@ -49,17 +52,18 @@ function ProjectCard({ project }: { project: ProjectSummary }) {
                     </div>
                     <div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                            未付
+                            {t('未付')}
                         </div>
                         <div className="font-medium text-green-700 dark:text-green-300">
                             {formatMoney(project.unpaid_amount)}
                         </div>
                     </div>
-                </div>
+                    </div>
+                )}
 
                 <div className="mt-4">
                     <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                        <span>任务进度</span>
+                        <span>{t('任务进度')}</span>
                         <span>
                             {project.tasks_done}/{project.tasks_total}
                         </span>
@@ -75,12 +79,12 @@ function ProjectCard({ project }: { project: ProjectSummary }) {
                 <div className="mt-4 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                     <span>
                         {project.deadline
-                            ? `截止 ${project.deadline}`
-                            : '无截止日期'}
+                            ? `${t('截止')} ${project.deadline}`
+                            : t('无截止日期')}
                     </span>
                     {project.last_log && (
                         <span title={project.last_log.content}>
-                            最近动态 {project.last_log.date}
+                            {t('最近动态')} {project.last_log.date}
                         </span>
                     )}
                 </div>
@@ -94,15 +98,17 @@ export default function Dashboard({
 }: {
     projects: ProjectSummary[];
 }) {
+    const { t } = useLanguage();
+
     return (
         <AuthenticatedLayout
             header={
                 <h2 className="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
-                    Dashboard
+                    {t('控制台')}
                 </h2>
             }
         >
-            <Head title="Dashboard" />
+            <Head title={t('控制台')} />
 
             <div className="py-12">
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -113,10 +119,10 @@ export default function Dashboard({
                             <div className="p-12 text-center text-gray-900 dark:text-gray-100">
                                 <div className="text-4xl">📋</div>
                                 <div className="mt-4 text-lg font-medium">
-                                    你还没有项目
+                                    {t('你还没有项目')}
                                 </div>
                                 <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                    等待开发者为你分配项目,项目分配后将显示在这里。
+                                    {t('等待开发者为你分配项目,项目分配后将显示在这里。')}
                                 </div>
                             </div>
                         </div>

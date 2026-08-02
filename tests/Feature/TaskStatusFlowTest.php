@@ -25,6 +25,7 @@ class TaskStatusFlowTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
 
         $this->admin = Admin::factory()->create();
         $this->member = User::factory()->create();

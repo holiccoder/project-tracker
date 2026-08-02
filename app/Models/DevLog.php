@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Enums\DevLogCategory;
+use App\Enums\DevLogStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['project_id', 'task_id', 'date', 'content', 'hours_spent'])]
+#[Fillable(['project_id', 'date', 'content', 'status', 'category'])]
 class DevLog extends Model
 {
     use HasFactory;
@@ -20,8 +22,9 @@ class DevLog extends Model
     protected function casts(): array
     {
         return [
+            'status' => DevLogStatus::class,
+            'category' => DevLogCategory::class,
             'date' => 'date',
-            'hours_spent' => 'decimal:1',
         ];
     }
 
@@ -30,8 +33,15 @@ class DevLog extends Model
         return $this->belongsTo(Project::class);
     }
 
-    public function task(): BelongsTo
+    protected static function booted(): void
     {
-        return $this->belongsTo(Task::class);
+        static::created(function (DevLog $devLog) {
+            $project = $devLog->project;
+            if ($project) {
+                foreach ($project->members as $member) {
+                    $member->notify(new \App\Notifications\NewDevLogNotification($devLog));
+                }
+            }
+        });
     }
 }

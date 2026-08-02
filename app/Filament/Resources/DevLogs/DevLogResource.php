@@ -18,7 +18,15 @@ class DevLogResource extends Resource
 {
     protected static ?string $model = DevLog::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static ?string $navigationLabel = '开发日志';
+
+    protected static ?string $pluralModelLabel = '开发日志';
+
+    protected static ?string $modelLabel = '开发日志';
+
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBookOpen;
+
+    protected static ?int $navigationSort = 2;
 
     protected static ?string $recordTitleAttribute = 'content';
 

@@ -18,7 +18,15 @@ class IssueResource extends Resource
 {
     protected static ?string $model = Issue::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static ?string $navigationLabel = '问题';
+
+    protected static ?string $pluralModelLabel = '问题';
+
+    protected static ?string $modelLabel = '问题';
+
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedExclamationTriangle;
+
+    protected static ?int $navigationSort = 6;
 
     protected static ?string $recordTitleAttribute = 'title';
 

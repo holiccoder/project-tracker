@@ -30,6 +30,7 @@ class ContractsTable
                     ->label('上传者')
                     ->placeholder('—'),
                 TextColumn::make('created_at')
+                    ->label('上传时间')
                     ->dateTime()
                     ->sortable(),
             ])

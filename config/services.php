@@ -35,4 +35,6 @@ return [
         ],
     ],
 
+    'dev_log_api_token' => env('DEV_LOG_API_TOKEN'),
+
 ];

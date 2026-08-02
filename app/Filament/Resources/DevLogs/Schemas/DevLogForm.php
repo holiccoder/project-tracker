@@ -2,17 +2,53 @@
 
 namespace App\Filament\Resources\DevLogs\Schemas;
 
-use App\Models\Task;
+use App\Enums\DevLogCategory;
+use App\Enums\DevLogStatus;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 
 class DevLogForm
 {
+    public static function entryFields(): array
+    {
+        return [
+            DatePicker::make('date')
+                ->label('日期')
+                ->default(now())
+                ->required(),
+            Select::make('status')
+                ->label('状态')
+                ->options(DevLogStatus::class)
+                ->default(DevLogStatus::InProgress->value)
+                ->required(),
+            Select::make('category')
+                ->label('分类')
+                ->options(DevLogCategory::class)
+                ->default(DevLogCategory::AgentIndependent->value)
+                ->required(),
+            Textarea::make('content')
+                ->label('记录内容')
+                ->rows(4)
+                ->required()
+                ->columnSpanFull(),
+        ];
+    }
+
+    public static function batchRepeater(): Repeater
+    {
+        return Repeater::make('logs')
+            ->label('开发日志')
+            ->schema(self::entryFields())
+            ->columns(3)
+            ->defaultItems(1)
+            ->addActionLabel('添加一条日志')
+            ->itemLabel(fn (array $state): ?string => $state['date'] ?? null);
+    }
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -25,31 +61,7 @@ class DevLogForm
                     ->live()
                     ->required(fn (Select $component): bool => ! $component->getLivewire() instanceof RelationManager)
                     ->visible(fn (Select $component): bool => ! $component->getLivewire() instanceof RelationManager),
-                Select::make('task_id')
-                    ->label('关联任务')
-                    ->options(fn (Get $get): array => Task::query()
-                        ->when($get('project_id'), fn ($query, $projectId) => $query->where('project_id', $projectId))
-                        ->orderBy('title')
-                        ->pluck('title', 'id')
-                        ->all())
-                    ->searchable()
-                    ->preload()
-                    ->nullable(),
-                DatePicker::make('date')
-                    ->default(now())
-                    ->required(),
-                Textarea::make('content')
-                    ->label('记录内容')
-                    ->rows(4)
-                    ->required()
-                    ->columnSpanFull(),
-                TextInput::make('hours_spent')
-                    ->label('工时(小时)')
-                    ->numeric()
-                    ->minValue(0)
-                    ->maxValue(24)
-                    ->step(0.1)
-                    ->placeholder('可选'),
+                ...self::entryFields(),
             ]);
     }
 }

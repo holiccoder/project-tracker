@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'deadline',
     'repo_url',
     'created_by',
+    'remark',
 ])]
 #[Hidden([])]
 class Project extends Model
@@ -65,8 +66,24 @@ class Project extends Model
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'project_user')
-            ->withPivot('role')
+            ->withPivot(['role', 'can_view_price'])
             ->withTimestamps();
+    }
+
+    /**
+     * Whether the given member may view this project's financial details.
+     */
+    public function canViewPriceFor(User $user): bool
+    {
+        if ($this->pivot !== null && array_key_exists('can_view_price', $this->pivot->getAttributes())) {
+            return (bool) $this->pivot->can_view_price;
+        }
+
+        $member = $this->relationLoaded('members')
+            ? $this->members->firstWhere('id', $user->getKey())
+            : $this->members()->whereKey($user->getKey())->first();
+
+        return $member !== null && (bool) $member->pivot->can_view_price;
     }
 
     public function tasks(): HasMany
@@ -87,6 +104,16 @@ class Project extends Model
     public function issues(): HasMany
     {
         return $this->hasMany(Issue::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(ProjectInvitation::class);
     }
 
     /**

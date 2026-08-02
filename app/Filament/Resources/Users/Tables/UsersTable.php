@@ -21,6 +21,14 @@ class UsersTable
                 TextColumn::make('email')
                     ->label('邮箱')
                     ->searchable(),
+                TextColumn::make('wechat')
+                    ->label('微信')
+                    ->searchable()
+                    ->toggleable(),
+                TextColumn::make('phone')
+                    ->label('手机号码')
+                    ->searchable()
+                    ->toggleable(),
                 TextColumn::make('remark')
                     ->label('备注')
                     ->searchable()

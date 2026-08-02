@@ -21,6 +21,7 @@ class IssuesTable
         return $table
             ->columns([
                 TextColumn::make('title')
+                    ->label('问题标题')
                     ->searchable()
                     ->limit(40)
                     ->sortable(),
@@ -29,6 +30,7 @@ class IssuesTable
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('severity')
+                    ->label('严重程度')
                     ->badge()
                     ->formatStateUsing(fn (IssueSeverity $state): string => $state->label())
                     ->color(fn (IssueSeverity $state): string => match ($state) {
@@ -38,6 +40,7 @@ class IssuesTable
                     })
                     ->sortable(),
                 TextColumn::make('status')
+                    ->label('状态')
                     ->badge()
                     ->formatStateUsing(fn (IssueStatus $state): string => $state->label())
                     ->color(fn (IssueStatus $state): string => match ($state) {
@@ -48,6 +51,7 @@ class IssuesTable
                     })
                     ->sortable(),
                 TextColumn::make('created_at')
+                    ->label('提交时间')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -59,8 +63,10 @@ class IssuesTable
                     ->searchable()
                     ->preload(),
                 SelectFilter::make('severity')
+                    ->label('严重程度')
                     ->options(IssueSeverity::class),
                 SelectFilter::make('status')
+                    ->label('问题状态')
                     ->options(IssueStatus::class),
             ])
             ->recordActions([

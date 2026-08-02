@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Widgets\ProjectOverviewStats;
 use App\Filament\Widgets\UpcomingDeadlines;
+use App\Filament\Widgets\MonthlyWorkHourReport;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -30,6 +31,9 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->authGuard('admin')
+            ->bootUsing(function (): void {
+                app()->setLocale('zh_CN');
+            })
             ->colors([
                 'primary' => Color::Amber,
             ])
@@ -40,9 +44,9 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
-                AccountWidget::class,
                 ProjectOverviewStats::class,
                 UpcomingDeadlines::class,
+                MonthlyWorkHourReport::class,
             ])
             ->middleware([
                 EncryptCookies::class,

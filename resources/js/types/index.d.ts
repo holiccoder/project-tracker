@@ -22,6 +22,10 @@ export type TaskStatus =
     | 'changes_requested';
 export type IssueSeverity = 'normal' | 'serious' | 'blocking';
 export type IssueStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+export type DevLogStatus = 'in_progress' | 'completed';
+export type DevLogCategory =
+    | 'agent_independent'
+    | 'human_agent_collaboration';
 
 export interface ProjectSummary {
     id: number;
@@ -31,8 +35,9 @@ export interface ProjectSummary {
     status: ProjectStatus;
     status_label: string;
     amount: string | null;
-    paid_amount: string;
+    paid_amount: string | null;
     unpaid_amount: string | null;
+    can_view_price: boolean;
     deadline: string | null;
     repo_url: string | null;
     tasks_total: number;
@@ -43,6 +48,11 @@ export interface ProjectSummary {
 
 export interface ProjectDetail extends ProjectSummary {
     members: Member[];
+}
+
+export interface TaskAttachment {
+    name: string;
+    url: string;
 }
 
 export interface TaskItem {
@@ -59,14 +69,36 @@ export interface TaskItem {
     completed_at: string | null;
     accepted_at: string | null;
     created_at: string | null;
+    attachments: TaskAttachment[];
+    comments?: CommentItem[];
+}
+
+export interface CommentItem {
+    id: number;
+    body: string;
+    author: {
+        id: number;
+        name: string;
+        is_admin: boolean;
+    } | null;
+    created_at: string;
+}
+
+export interface PaymentItem {
+    id: number;
+    amount: string | null;
+    date: string;
+    remark: string | null;
 }
 
 export interface DevLogItem {
     id: number;
     date: string;
     content: string;
-    hours_spent: string | null;
-    task: { id: number; title: string } | null;
+    status: DevLogStatus;
+    status_label: string;
+    category: DevLogCategory;
+    category_label: string;
 }
 
 export interface IssueItem {
@@ -79,6 +111,7 @@ export interface IssueItem {
     status_label: string;
     resolved_at: string | null;
     created_at: string | null;
+    has_attachment?: boolean;
 }
 
 export interface ContractItem {

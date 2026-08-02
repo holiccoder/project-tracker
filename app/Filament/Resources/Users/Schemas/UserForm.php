@@ -21,6 +21,13 @@ class UserForm
                     ->email()
                     ->unique(ignoreRecord: true)
                     ->required(),
+                TextInput::make('wechat')
+                    ->label('微信')
+                    ->maxLength(255),
+                TextInput::make('phone')
+                    ->label('手机号码')
+                    ->tel()
+                    ->maxLength(255),
                 Textarea::make('remark')
                     ->label('备注(仅后台可见)')
                     ->rows(2)

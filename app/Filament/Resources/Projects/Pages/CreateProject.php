@@ -12,12 +12,17 @@ class CreateProject extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $data['created_by'] = auth()->id();
+        $data['created_by'] = auth('admin')->id();
 
         if (blank($data['slug'] ?? null)) {
             $data['slug'] = Str::slug($data['name']).'-'.Str::lower(Str::random(6));
         }
 
         return $data;
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
     }
 }

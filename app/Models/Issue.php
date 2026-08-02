@@ -8,12 +8,18 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use InvalidArgumentException;
 
-#[Fillable(['project_id', 'title', 'description', 'severity', 'status', 'created_by', 'resolved_at'])]
+#[Fillable(['project_id', 'title', 'description', 'attachment_path', 'severity', 'status', 'created_by', 'resolved_at'])]
 class Issue extends Model
 {
     use HasFactory;
+
+    public function comments(): MorphMany
+    {
+        return $this->morphMany(Comment::class, 'commentable');
+    }
 
     /**
      * @var array<string, array<int, IssueStatus>>
@@ -72,5 +78,25 @@ class Issue extends Model
         $this->status = $target;
         $this->resolved_at = $target === IssueStatus::Resolved ? now() : $this->resolved_at;
         $this->save();
+    }
+
+    protected static function booted(): void
+    {
+        static::updated(function (Issue $issue) {
+            if ($issue->isDirty('status')) {
+                $project = $issue->project;
+                if ($project) {
+                    foreach ($project->members as $member) {
+                        $member->notify(new \App\Notifications\IssueStatusChangedNotification($issue));
+                    }
+                }
+            }
+        });
+
+        static::deleted(function (Issue $issue) {
+            if ($issue->attachment_path && \Illuminate\Support\Facades\Storage::disk('local')->exists($issue->attachment_path)) {
+                \Illuminate\Support\Facades\Storage::disk('local')->delete($issue->attachment_path);
+            }
+        });
     }
 }

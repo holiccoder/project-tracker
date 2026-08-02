@@ -22,6 +22,7 @@ class TasksTable
         return $table
             ->columns([
                 TextColumn::make('title')
+                    ->label('任务标题')
                     ->searchable()
                     ->limit(40)
                     ->sortable(),
@@ -30,6 +31,7 @@ class TasksTable
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('priority')
+                    ->label('优先级')
                     ->badge()
                     ->formatStateUsing(fn (TaskPriority $state): string => $state->label())
                     ->color(fn (TaskPriority $state): string => match ($state) {
@@ -39,6 +41,7 @@ class TasksTable
                     })
                     ->sortable(),
                 TextColumn::make('status')
+                    ->label('状态')
                     ->badge()
                     ->formatStateUsing(fn (TaskStatus $state): string => $state->label())
                     ->color(fn (TaskStatus $state): string => match ($state) {
@@ -51,11 +54,23 @@ class TasksTable
                         TaskStatus::ChangesRequested => 'warning',
                     })
                     ->sortable(),
-                TextColumn::make('due_date')
-                    ->date()
-                    ->sortable()
-                    ->placeholder('—'),
+                TextColumn::make('latest_comment')
+                    ->label('最近评论')
+                    ->placeholder('—')
+                    ->formatStateUsing(function (Task $record): ?string {
+                        $comment = $record->comments->sortByDesc('created_at')->first();
+
+                        if (! $comment) {
+                            return null;
+                        }
+
+                        $author = $comment->author?->name ?? '已注销用户';
+
+                        return $author.': '.mb_strimwidth($comment->body, 0, 60, '…');
+                    })
+                    ->wrap(),
                 TextColumn::make('created_at')
+                    ->label('创建时间')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -67,8 +82,10 @@ class TasksTable
                     ->searchable()
                     ->preload(),
                 SelectFilter::make('status')
+                    ->label('任务状态')
                     ->options(TaskStatus::class),
                 SelectFilter::make('priority')
+                    ->label('优先级')
                     ->options(TaskPriority::class),
             ])
             ->recordActions([
@@ -113,6 +130,7 @@ class TasksTable
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->modifyQueryUsing(fn ($query) => $query->with(['comments.author']));
     }
 }

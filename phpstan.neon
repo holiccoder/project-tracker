@@ -1,0 +1,10 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+
+    paths:
+        - app/
+
+    # Level 5 is a strong standard balance between strict check and speed for Laravel projects
+    level: 5

@@ -4,11 +4,14 @@ namespace App\Models;
 
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
+use App\Models\TaskStatusHistory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 
 #[Fillable([
@@ -22,6 +25,7 @@ use InvalidArgumentException;
     'reject_reason',
     'completed_at',
     'accepted_at',
+    'attachments',
 ])]
 class Task extends Model
 {
@@ -55,6 +59,7 @@ class Task extends Model
             'due_date' => 'date',
             'completed_at' => 'datetime',
             'accepted_at' => 'datetime',
+            'attachments' => 'array',
         ];
     }
 
@@ -71,9 +76,14 @@ class Task extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function devLogs(): HasMany
+    public function comments(): MorphMany
     {
-        return $this->hasMany(DevLog::class);
+        return $this->morphMany(Comment::class, 'commentable');
+    }
+
+    public function statusHistories(): HasMany
+    {
+        return $this->hasMany(TaskStatusHistory::class);
     }
 
     /**
@@ -103,10 +113,33 @@ class Task extends Model
             throw new InvalidArgumentException('拒绝任务必须填写原因');
         }
 
+        $oldStatus = $this->status;
+
         $this->status = $target;
         $this->reject_reason = $target === TaskStatus::Rejected ? $rejectReason : null;
         $this->completed_at = $target === TaskStatus::Done ? now() : $this->completed_at;
         $this->accepted_at = $target === TaskStatus::Accepted ? now() : $this->accepted_at;
         $this->save();
+
+        $operator = auth('web')->user() ?? auth('admin')->user();
+        TaskStatusHistory::create([
+            'task_id' => $this->id,
+            'from_status' => $oldStatus->value,
+            'to_status' => $target->value,
+            'operator_id' => $operator ? $operator->id : null,
+            'operator_type' => $operator ? get_class($operator) : null,
+            'remark' => $target === TaskStatus::Rejected ? $rejectReason : null,
+        ]);
+    }
+
+    protected static function booted(): void
+    {
+        static::deleted(function (Task $task) {
+            foreach ($task->attachments ?? [] as $path) {
+                if (is_string($path) && Storage::disk('public')->exists($path)) {
+                    Storage::disk('public')->delete($path);
+                }
+            }
+        });
     }
 }

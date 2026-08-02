@@ -6,6 +6,7 @@ use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Models\Task;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -17,6 +18,7 @@ class TaskForm
     public static function configure(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->components([
                 Select::make('project_id')
                     ->label('项目')
@@ -24,27 +26,44 @@ class TaskForm
                     ->searchable()
                     ->preload()
                     ->required(fn (Select $component): bool => ! $component->getLivewire() instanceof RelationManager)
-                    ->visible(fn (Select $component): bool => ! $component->getLivewire() instanceof RelationManager),
+                    ->visible(fn (Select $component): bool => ! $component->getLivewire() instanceof RelationManager)
+                    ->columnSpanFull(),
                 TextInput::make('title')
+                    ->label('任务标题')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->columnSpanFull(),
                 Textarea::make('description')
-                    ->rows(3)
+                    ->label('任务描述')
+                    ->rows(6)
+                    ->columnSpanFull(),
+                FileUpload::make('attachments')
+                    ->label('附件')
+                    ->multiple()
+                    ->disk('public')
+                    ->directory('task-attachments')
+                    ->maxFiles(10)
+                    ->downloadable()
+                    ->previewable(false)
                     ->columnSpanFull(),
                 Select::make('priority')
+                    ->label('优先级')
                     ->options(TaskPriority::class)
                     ->default(TaskPriority::Medium->value)
-                    ->required(),
+                    ->required()
+                    ->columnSpanFull(),
                 Select::make('status')
+                    ->label('状态')
                     ->options(TaskStatus::class)
                     ->default(TaskStatus::Pending->value)
-                    ->required(),
-                DatePicker::make('due_date'),
+                    ->required()
+                    ->columnSpanFull(),
                 Textarea::make('reject_reason')
                     ->label('拒绝原因')
                     ->rows(2)
                     ->disabled()
-                    ->visible(fn (Task $record): bool => $record?->status === TaskStatus::Rejected),
+                    ->visible(fn (?Task $record): bool => $record?->status === TaskStatus::Rejected)
+                    ->columnSpanFull(),
             ]);
     }
 }

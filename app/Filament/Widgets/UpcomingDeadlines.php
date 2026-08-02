@@ -32,6 +32,7 @@ class UpcomingDeadlines extends TableWidget
             )
             ->columns([
                 TextColumn::make('title')
+                    ->label('任务标题')
                     ->limit(40),
                 TextColumn::make('project.name')
                     ->label('项目'),

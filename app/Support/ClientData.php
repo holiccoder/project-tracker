@@ -8,6 +8,7 @@ use App\Models\Issue;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Whitelisted serialization for client (Inertia) data.
@@ -20,6 +21,8 @@ class ClientData
 {
     public static function projectSummary(Project $project, User $user): array
     {
+        $canViewPrice = $project->canViewPriceFor($user);
+
         return [
             'id' => $project->id,
             'name' => $project->name,
@@ -27,9 +30,11 @@ class ClientData
             'description' => $project->description,
             'status' => $project->status->value,
             'status_label' => $project->status->label(),
-            'amount' => $project->amount,
-            'paid_amount' => $project->paid_amount,
-            'unpaid_amount' => $project->unpaid_amount,
+            'repo_url' => $project->repo_url,
+            'amount' => $canViewPrice ? $project->amount : null,
+            'paid_amount' => $canViewPrice ? $project->paid_amount : null,
+            'unpaid_amount' => $canViewPrice ? $project->unpaid_amount : null,
+            'can_view_price' => $canViewPrice,
             'deadline' => $project->deadline?->toDateString(),
             'tasks_total' => (int) $project->tasks_count,
             'tasks_done' => (int) $project->tasks_done,
@@ -52,6 +57,24 @@ class ClientData
         return ['id' => $user->id, 'name' => $user->name];
     }
 
+    public static function comment(\App\Models\Comment $comment): array
+    {
+        return [
+            'id' => $comment->id,
+            'body' => $comment->body,
+            'author' => $comment->author ? [
+                'id' => $comment->author->id,
+                'name' => $comment->author->name,
+                'is_admin' => $comment->author_type === \App\Models\Admin::class,
+            ] : [
+                'id' => 0,
+                'name' => '已注销用户',
+                'is_admin' => false,
+            ],
+            'created_at' => $comment->created_at?->toISOString(),
+        ];
+    }
+
     public static function task(Task $task): array
     {
         return [
@@ -70,7 +93,29 @@ class ClientData
             'completed_at' => $task->completed_at?->toISOString(),
             'accepted_at' => $task->accepted_at?->toISOString(),
             'created_at' => $task->created_at?->toISOString(),
+            'attachments' => self::taskAttachments($task),
+            'comments' => $task->comments->map(
+                fn (\App\Models\Comment $comment) => self::comment($comment),
+            )->values()->all(),
         ];
+    }
+
+    public static function taskAttachments(Task $task): array
+    {
+        $attachments = [];
+
+        foreach ($task->attachments ?? [] as $path) {
+            if (! is_string($path)) {
+                continue;
+            }
+
+            $attachments[] = [
+                'name' => basename($path),
+                'url' => Storage::disk('public')->url($path),
+            ];
+        }
+
+        return $attachments;
     }
 
     public static function devLog(DevLog $devLog): array
@@ -79,10 +124,10 @@ class ClientData
             'id' => $devLog->id,
             'date' => $devLog->date->toDateString(),
             'content' => $devLog->content,
-            'hours_spent' => $devLog->hours_spent,
-            'task' => $devLog->task
-                ? ['id' => $devLog->task->id, 'title' => $devLog->task->title]
-                : null,
+            'status' => $devLog->status->value,
+            'status_label' => $devLog->status->label(),
+            'category' => $devLog->category->value,
+            'category_label' => $devLog->category->label(),
         ];
     }
 
@@ -98,6 +143,7 @@ class ClientData
             'status_label' => $issue->status->label(),
             'resolved_at' => $issue->resolved_at?->toISOString(),
             'created_at' => $issue->created_at?->toISOString(),
+            'has_attachment' => $issue->attachment_path !== null,
         ];
     }
 
@@ -107,6 +153,16 @@ class ClientData
             'id' => $contract->id,
             'name' => $contract->name,
             'created_at' => $contract->created_at?->toISOString(),
+        ];
+    }
+
+    public static function payment(\App\Models\Payment $payment): array
+    {
+        return [
+            'id' => $payment->id,
+            'amount' => $payment->amount,
+            'date' => $payment->date->toDateString(),
+            'remark' => $payment->remark,
         ];
     }
 }

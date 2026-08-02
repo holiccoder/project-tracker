@@ -19,8 +19,7 @@ class ProjectOverviewStats extends StatsOverviewWidget
             IssueStatus::Open,
             IssueStatus::InProgress,
         ])->count();
-        $weeklyHours = (float) DevLog::whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
-            ->sum('hours_spent');
+        $weeklyLogs = DevLog::whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])->count();
 
         return [
             Stat::make('待确认任务', $pendingTasks)
@@ -31,9 +30,9 @@ class ProjectOverviewStats extends StatsOverviewWidget
                 ->description('待处理 / 处理中')
                 ->color($openIssues > 0 ? 'danger' : 'success')
                 ->icon('heroicon-o-exclamation-triangle'),
-            Stat::make('本周工时', number_format($weeklyHours, 1).' h')
-                ->description('基于开发记录工时')
-                ->icon('heroicon-o-clock'),
+            Stat::make('本周开发记录', $weeklyLogs.' 条')
+                ->description('本周提交的进度记录')
+                ->icon('heroicon-o-document-text'),
         ];
     }
 }
