@@ -24,5 +24,14 @@ class AppServiceProvider extends ServiceProvider
     {
         Vite::prefetch(concurrency: 3);
         Payment::observe(PaymentObserver::class);
+
+        // Dynamically switch session cookie to ensure 100% cookie and logout isolation between Admin and User
+        $isAdminRequest = request()->is('admin') || 
+                          request()->is('admin/*') || 
+                          (request()->is('livewire/*') && str_contains(request()->header('referer', ''), '/admin'));
+
+        if ($isAdminRequest) {
+            config(['session.cookie' => 'admin_session']);
+        }
     }
 }
