@@ -40,6 +40,7 @@ class MonthlyWorkHourReport extends TableWidget
                     ->label('日志记录数')
                     ->suffix(' 条')
                     ->placeholder('0'),
-            ]);
+            ])
+            ->paginated(false);
     }
 }
