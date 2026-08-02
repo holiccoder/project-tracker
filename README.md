@@ -1,58 +1,102 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# 🚀 Project Tracker (项目协作与追踪系统)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+`Project Tracker` 是一款基于 **Laravel 13** + **Filament PHP v5** + **Inertia.js (React + TypeScript)** 打造的高品质、工业级软件项目研发追踪系统。它完美地在**客户端（Web 前台）**与**开发团队端（Filament 后台）**之间建立了高效、健壮、实时、安全的信息反馈闭环。
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## 🛠️ 技术栈与底层选型
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+* **后端核心**：`Laravel 13.21.1` + `PHP 8.4.22` (严格强类型约束)
+* **管理后台**：`Filament PHP v5` (优雅极简、高交互性的数据卡片)
+* **前端展示**：`Inertia.js` + `React 18` + `TypeScript 5` + `Tailwind CSS v3`
+* **数据库**：`SQLite` (文件数据库，开箱即用，支持内存测试)
+* **工程控制**：`PHPStan (Larastan)` + `PHPUnit 12` (全自动化高红线保障)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## 💎 系统核心功能模块
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### 1. 项目管理 (Projects)
+* 支持对项目的整体预算、里程碑交付时间、Repo 仓库地址的追踪；
+* 管理项目成员及关联角色，并对非项目成员实行严格的 **Policy（策略）安全级别防护**；
+* 支持灵活配置 `can_view_price`（项目金额查看权限），让保密项目和商业数据的可见性可控。
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 2. 任务流转与状态机 (Tasks)
+* 任务支持一键委派（支持多文件附件上传，多达 10 个附件支持，限制 10MB 大小）；
+* **底层状态机流转设计**：
+  * 支持 `Pending` (待处理) ➔ `Confirmed` (已确认) ➔ `InProgress` (进行中) ➔ `Done` (已完成) ➔ `Accepted` (验收) / `ChangesRequested` (返工) 状态安全流转；
+  * `Rejected` 状态必须在写入 `reject_reason` 后方可流转；
+* 后台任务录入表单已全面优化为 **100% 优雅全宽流式布局**。
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+### 3. 开发日志与批量录入 (DevLogs)
+* 摈弃零散单条创建模式，支持在项目详情面板下直接通过 **`Repeater`（批量开发日志录入）** 模式，一键批量追加多条进度记录；
+* 开发日志支持完成程度分类：`InProgress` (进行中)、`Completed` (已完成)，并支持分类字段 `category`；
+* 后台配备 **开发记录月度报表** 和 **本周开发记录数** 等聚合大盘统计组件，对开发工时及进度频次一目了然。
 
-## Agentic Development
+### 4. 讨论与评论系统 (Comments)
+* 挂载在任务主线下方，支持前台客户与后台开发人员进行多文件附加、长达 10,000 字符的富文本**即时讨论评论**；
+* 针对用户注销、销户情况进行了防御性空值校验，系统 100% 不会发生 null 穿透 Fatal 崩溃。
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### 5. 问题追踪 (Issues)
+* 支持 `Low`、`Normal`、`High`、`Critical` 4 个严重级别，提供图片、压缩包等缺陷截图/附件上传；
+* **极速缺陷响应**：Issue 状态改变时自动向全体项目成员分发即时消息。
+
+### 6. 安全附件下载端点 (Attachment Downloads)
+* 项目合同（Contracts）和缺陷截图（Issues）的下载，均通过后端 `Storage` 内部流式/二进制安全代理，拒绝任何物理路径外露；
+* 独创 **`auth:web,admin` 双重多 Guard 穿透守卫**，既保护了非项目成员/外人的恶意嗅探（403 拦截），又完美打通了客户与开发人员的正常读取通道。
+
+### 7. 双向自适应通知系统 (Dual-End Notifications)
+* **发布任务** 和 **发表评论** 时，系统会同时对 **全部管理员** 和 **其他项目成员/客户** 分发即时通知（包含数据库落库与 Mail 邮件通知）；
+* **管理员端 (Admin)**：右上角配备 Filament 原生的 **小铃铛** 交互抽屉，支持实时标为已读；
+* **客户端 (User)**：导航栏集成精美的 **React 铃铛下拉框**，支持小红点、未读计数、已读面板和**一键“全部标为已读”**；
+* **邮件动态跳转**：通知邮件中的链接会自适应身份，管理员直接导流至后台，客户流畅导流至前台详情页。
+
+---
+
+## ⚡ 快速开始与默认账号
+
+通过以下极简命令，即可在本地秒级重置并一键初始化填充全部测试数据：
 
 ```bash
-composer require laravel/boost --dev
+# 1. 安装后台依赖
+composer install
 
-php artisan boost:install
+# 2. 安装前端编译依赖
+npm install
+
+# 3. 本地构建前端资源
+npm run build # 或本地热更新: npm run dev
+
+# 4. 重置迁移并一键填充测试数据
+php artisan migrate:fresh --seed
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### 🔓 默认登录凭据：
 
-## Contributing
+* **👤 客户前台测试用户**：
+  * **入口**：`http://localhost:8000` (或您配置的本地端口)
+  * **账号**：`test@test.com`
+  * **密码**：`password`
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+* **💻 开发者后台管理员**：
+  * **入口**：`http://localhost:8000/admin`
+  * **账号**：`admin@admin.com`
+  * **密码**：`password`
 
-## Code of Conduct
+---
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## 🔬 自动化测试与静态代码分析
 
-## Security Vulnerabilities
+我们执行了最高标准的质量红线，代码中包含了完备的自动化测试体系以及严格的静态分析检查：
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### 1. 运行自动化测试 (PHPUnit)
+包含针对状态机、权限 Policies、安全路由、Inertia 渲染、价格屏蔽及漏底等全方位的 **84 个测试用例，217 个断言**，测试全绿：
+```bash
+vendor/bin/phpunit
+```
 
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### 2. 运行静态代码分析 (PHPStan / Larastan)
+项目配置了 `phpstan.neon`，在等级 Level 5 下能够确保 100% 的类生命周期引用及严格强类型校验安全：
+```bash
+vendor/bin/phpstan analyse --memory-limit=1G
+```
