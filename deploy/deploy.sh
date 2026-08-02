@@ -14,7 +14,8 @@ exec 9>"$LOCK_FILE"
 flock -n 9 || { echo "deploy already running, aborting"; exit 1; }
 
 echo "[1/7] pulling latest code"
-git pull --ff-only origin main
+git fetch origin main
+git reset --hard origin/main
 
 echo "[2/7] installing composer dependencies"
 "$COMPOSER_BIN" install --no-dev --optimize-autoloader --prefer-dist --no-interaction
