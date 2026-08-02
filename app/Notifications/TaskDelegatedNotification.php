@@ -21,12 +21,16 @@ class TaskDelegatedNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
+        $url = $notifiable instanceof \App\Models\Admin
+            ? url("/admin/tasks/{$this->task->id}/edit")
+            : url("/projects/{$this->task->project->slug}/tasks/{$this->task->id}");
+
         return (new MailMessage)
             ->subject("【项目追踪】新任务委派：{$this->task->title}")
             ->line("客户委派了新任务：{$this->task->title}")
             ->line("描述：{$this->task->description}")
             ->line("优先级：{$this->task->priority->value}")
-            ->action('查看任务', url("/admin/tasks/{$this->task->id}/edit"));
+            ->action('查看任务', $url);
     }
 
     public function toArray(object $notifiable): array

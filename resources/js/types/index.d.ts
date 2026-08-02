@@ -81,6 +81,7 @@ export interface CommentItem {
         name: string;
         is_admin: boolean;
     } | null;
+    attachments: TaskAttachment[];
     created_at: string;
 }
 
@@ -125,11 +126,25 @@ export interface Flash {
     error?: string;
 }
 
+export interface NotificationItem {
+    id: string;
+    type: string;
+    data: {
+        task_id?: number;
+        comment_id?: number;
+        title?: string;
+        project_name?: string;
+        message: string;
+    };
+    created_at: string;
+}
+
 export type PageProps<
     T extends Record<string, unknown> = Record<string, unknown>,
 > = T & {
     auth: {
         user: User;
+        notifications: NotificationItem[];
     };
     flash: Flash;
 };

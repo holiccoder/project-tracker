@@ -2,7 +2,7 @@ import Badge from '@/Components/Badge';
 import FlashMessage from '@/Components/FlashMessage';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useLanguage } from '@/lib/i18n';
-import { CommentItem, TaskItem } from '@/types';
+import { CommentItem, TaskAttachment, TaskItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 
 export default function Show({
@@ -208,15 +208,20 @@ function CommentsSection({ task }: { task: TaskItem }) {
     const { t } = useLanguage();
     const { data, setData, post, processing, reset, errors } = useForm({
         body: '',
+        attachments: [] as File[],
     });
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         post(route('tasks.comments.store', task.id), {
             preserveScroll: true,
+            forceFormData: true,
             onSuccess: () => reset(),
         });
     };
+
+    const inputClass =
+        'mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 text-sm';
 
     return (
         <div className="mt-8 border-t border-gray-200 pt-6 dark:border-gray-700">
@@ -263,12 +268,28 @@ function CommentsSection({ task }: { task: TaskItem }) {
                         <p className="mt-2 whitespace-pre-wrap text-gray-700 dark:text-gray-300 font-sans">
                             {comment.body}
                         </p>
+
+                        {comment.attachments.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {comment.attachments.map((attachment, index) => (
+                                    <a
+                                        key={index}
+                                        href={attachment.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400 dark:hover:bg-indigo-950/50"
+                                    >
+                                        {attachment.name}
+                                    </a>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>
 
             {/* Comment Form */}
-            <form onSubmit={submit} className="mt-6">
+            <form onSubmit={submit} className="mt-6 space-y-4">
                 <div>
                     <label htmlFor="body" className="sr-only">
                         {t('发表评论')}
@@ -288,7 +309,37 @@ function CommentsSection({ task }: { task: TaskItem }) {
                         </p>
                     )}
                 </div>
-                <div className="mt-2 flex justify-end">
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {t('附件（可多选）')}
+                    </label>
+                    <input
+                        type="file"
+                        multiple
+                        onChange={(e) =>
+                            setData(
+                                'attachments',
+                                e.target.files ? Array.from(e.target.files) : [],
+                            )
+                        }
+                        className={`${inputClass} py-2`}
+                    />
+                    {data.attachments.length > 0 && (
+                        <ul className="mt-2 space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                            {data.attachments.map((file, index) => (
+                                <li key={index}>• {file.name}</li>
+                            ))}
+                        </ul>
+                    )}
+                    {(errors.attachments || (errors as Record<string, string>)['attachments.*']) && (
+                        <p className="mt-1 text-xs text-red-600">
+                            {errors.attachments || (errors as Record<string, string>)['attachments.*']}
+                        </p>
+                    )}
+                </div>
+
+                <div className="flex justify-end">
                     <button
                         type="submit"
                         disabled={processing}

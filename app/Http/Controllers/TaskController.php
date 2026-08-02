@@ -62,8 +62,15 @@ class TaskController extends Controller
             'attachments' => $attachmentPaths ?: null,
         ]);
 
+        // Notify all admins
         $admins = \App\Models\Admin::all();
         \Illuminate\Support\Facades\Notification::send($admins, new \App\Notifications\TaskDelegatedNotification($task));
+
+        // Notify other project members/clients
+        $membersToNotify = $project->members->where('id', '!=', $request->user()->id);
+        if ($membersToNotify->isNotEmpty()) {
+            \Illuminate\Support\Facades\Notification::send($membersToNotify, new \App\Notifications\TaskDelegatedNotification($task));
+        }
 
         return redirect()
             ->route('projects.show', $project)

@@ -51,6 +51,22 @@ class CommentsRelationManager extends RelationManager
                         $data['author_id'] = auth('admin')->id();
                         $data['author_type'] = \App\Models\Admin::class;
                         return $data;
+                    })
+                    ->after(function (\App\Models\Comment $record) {
+                        $task = $record->commentable;
+                        $project = $task->project;
+
+                        // Notify other admins
+                        $admins = \App\Models\Admin::where('id', '!=', auth('admin')->id())->get();
+                        if ($admins->isNotEmpty()) {
+                            \Illuminate\Support\Facades\Notification::send($admins, new \App\Notifications\NewCommentNotification($record, $task));
+                        }
+
+                        // Notify all project members/clients
+                        $members = $project->members;
+                        if ($members->isNotEmpty()) {
+                            \Illuminate\Support\Facades\Notification::send($members, new \App\Notifications\NewCommentNotification($record, $task));
+                        }
                     }),
             ])
             ->actions([

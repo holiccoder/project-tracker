@@ -71,8 +71,27 @@ class ClientData
                 'name' => '已注销用户',
                 'is_admin' => false,
             ],
+            'attachments' => self::commentAttachments($comment),
             'created_at' => $comment->created_at?->toISOString(),
         ];
+    }
+
+    public static function commentAttachments(\App\Models\Comment $comment): array
+    {
+        $attachments = [];
+
+        foreach ($comment->attachments ?? [] as $path) {
+            if (! is_string($path)) {
+                continue;
+            }
+
+            $attachments[] = [
+                'name' => basename($path),
+                'url' => Storage::disk('public')->url($path),
+            ];
+        }
+
+        return $attachments;
     }
 
     public static function task(Task $task): array

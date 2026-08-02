@@ -35,6 +35,14 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $user ? $user->only(['id', 'name', 'email']) : null,
+                'notifications' => $user ? $user->unreadNotifications->map(function ($n) {
+                    return [
+                        'id' => $n->id,
+                        'type' => $n->type,
+                        'data' => $n->data,
+                        'created_at' => $n->created_at->toIso8601String(),
+                    ];
+                })->all() : [],
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
