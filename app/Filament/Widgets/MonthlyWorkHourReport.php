@@ -18,16 +18,18 @@ class MonthlyWorkHourReport extends TableWidget
 
     public function table(Table $table): Table
     {
-        // Query grouping by project and year-month of dev logs.
-        // SUBSTR(date, 1, 7) extracts 'YYYY-MM' which is database-agnostic.
-        $query = DevLog::query()
-            ->with('project')
+        // Use a subquery to completely bypass MySQL only_full_group_by when Filament appends dev_logs.id to ORDER BY
+        $subQuery = DevLog::query()
             ->select('project_id')
             ->selectRaw('MIN(id) as id')
             ->selectRaw('SUBSTR(date, 1, 7) as month')
             ->selectRaw('COUNT(*) as total_logs')
             ->groupBy('project_id', 'month')
             ->orderBy('month', 'desc');
+
+        $query = DevLog::query()
+            ->fromSub($subQuery, 'dev_logs')
+            ->with('project');
 
         return $table
             ->query($query)
