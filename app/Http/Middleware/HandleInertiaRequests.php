@@ -29,7 +29,10 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        $user = $request->user();
+        // The application default guard is the Filament admin guard. The
+        // customer-facing Inertia app must explicitly read the web guard so
+        // logged-in frontend users are shared with pages such as Welcome.
+        $user = auth('web')->user();
 
         return [
             ...parent::share($request),

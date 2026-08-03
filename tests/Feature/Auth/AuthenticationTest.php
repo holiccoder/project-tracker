@@ -57,4 +57,23 @@ class AuthenticationTest extends TestCase
         $this->assertGuest('web');
         $response->assertRedirect('/');
     }
+
+    public function test_authenticated_frontend_user_is_shared_on_the_welcome_page(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user, 'web')
+            ->withHeaders([
+                'X-Inertia' => 'true',
+                'X-Inertia-Version' => hash_file('xxh128', public_path('build/manifest.json')),
+            ])
+            ->get('/');
+
+        $response->assertOk();
+
+        $payload = json_decode($response->getContent(), true);
+
+        $this->assertSame($user->id, $payload['props']['auth']['user']['id']);
+        $this->assertSame($user->name, $payload['props']['auth']['user']['name']);
+    }
 }
