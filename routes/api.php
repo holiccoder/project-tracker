@@ -8,7 +8,7 @@ use App\Http\Controllers\Api\TaskController;
 use App\Http\Middleware\EnsureApiToken;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(EnsureApiToken::class)->group(function () {
+Route::middleware(EnsureApiToken::class)->name('api.')->group(function () {
     Route::prefix('dev-logs')->group(function () {
         Route::get('/', [DevLogController::class, 'index']);
         Route::post('/', [DevLogController::class, 'store']);
