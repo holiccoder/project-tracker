@@ -99,6 +99,13 @@ GET /api/dev-logs
       "status_label": "已完成",
       "category": "agent_independent",
       "category_label": "AI 自主完成",
+      "latest_update": {
+        "id": 8,
+        "dev_log_id": 1,
+        "update": "补充了接口测试结果",
+        "created_at": "2026-08-03T12:00:00.000000Z",
+        "updated_at": "2026-08-03T12:00:00.000000Z"
+      },
       "created_at": "2026-08-02T12:00:00.000000Z",
       "updated_at": "2026-08-02T12:00:00.000000Z"
     }
@@ -106,6 +113,42 @@ GET /api/dev-logs
   "meta": { "current_page": 1, "last_page": 1, "per_page": 50, "total": 1 }
 }
 ```
+
+### 添加开发日志更新
+
+```http
+POST /api/dev-logs/{dev_log}/updates
+```
+
+**Body 参数：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| update | string | 是 | 更新内容 |
+
+**响应示例：**
+
+```json
+{
+  "id": 8,
+  "dev_log_id": 1,
+  "update": "补充了接口测试结果",
+  "created_at": "2026-08-03T12:00:00.000000Z",
+  "updated_at": "2026-08-03T12:00:00.000000Z"
+}
+```
+
+### 更新开发日志更新
+
+```http
+PATCH /api/dev-logs/{dev_log}/updates/{update}
+```
+
+**Body 参数：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| update | string | 是 | 更新内容 |
 
 ### 创建开发日志
 

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\ContractController;
 use App\Http\Controllers\Api\DevLogController;
+use App\Http\Controllers\Api\DevLogUpdateController;
 use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\TaskController;
@@ -12,6 +13,11 @@ Route::middleware(EnsureApiToken::class)->name('api.')->group(function () {
     Route::prefix('dev-logs')->group(function () {
         Route::get('/', [DevLogController::class, 'index']);
         Route::post('/', [DevLogController::class, 'store']);
+        Route::post('{devLog}/updates', [DevLogUpdateController::class, 'store'])
+            ->name('dev-logs.updates.store');
+        Route::patch('{devLog}/updates/{update}', [DevLogUpdateController::class, 'update'])
+            ->scopeBindings()
+            ->name('dev-logs.updates.update');
     });
 
     Route::apiResource('projects', ProjectController::class);

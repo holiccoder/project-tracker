@@ -31,7 +31,7 @@ class DevLogController extends Controller
             'category' => ['nullable', Rule::enum(DevLogCategory::class)],
         ]);
 
-        $query = DevLog::query()->with('project')->latest('date');
+        $query = DevLog::query()->with(['project', 'latestUpdate'])->latest('date');
 
         if (! empty($validated['project_id'])) {
             $query->where('project_id', $validated['project_id']);
@@ -116,6 +116,13 @@ class DevLogController extends Controller
             'status_label' => $log->status->label(),
             'category' => $log->category->value,
             'category_label' => $log->category->label(),
+            'latest_update' => $log->latestUpdate ? [
+                'id' => $log->latestUpdate->id,
+                'dev_log_id' => $log->latestUpdate->dev_log_id,
+                'update' => $log->latestUpdate->update,
+                'created_at' => $log->latestUpdate->created_at?->toISOString(),
+                'updated_at' => $log->latestUpdate->updated_at?->toISOString(),
+            ] : null,
             'created_at' => $log->created_at?->toISOString(),
             'updated_at' => $log->updated_at?->toISOString(),
         ];

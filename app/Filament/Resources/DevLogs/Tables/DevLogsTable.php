@@ -45,6 +45,11 @@ class DevLogsTable
                 TextColumn::make('content')
                     ->label('内容')
                     ->limit(50),
+                TextColumn::make('latestUpdate.update')
+                    ->label('最近更新')
+                    ->placeholder('暂无更新')
+                    ->limit(50)
+                    ->wrap(),
             ])
             ->defaultSort('date', 'desc')
             ->filters([
