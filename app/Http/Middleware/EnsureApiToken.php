@@ -15,6 +15,11 @@ class EnsureApiToken
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // Admin tokens issued via /api/auth/login (Sanctum) are accepted first.
+        if ($request->bearerToken() && $request->user('sanctum') !== null) {
+            return $next($request);
+        }
+
         $provided = $request->bearerToken() ?? $request->input('token');
         $provided = (string) $provided;
 

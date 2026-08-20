@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>项目助手</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- 登录视图 -->
+  <div id="login-view" class="hidden">
+    <div class="login-header">
+      <img src="icons/icon48.png" alt="" width="32" height="32">
+      <h1>项目助手</h1>
+    </div>
+    <form id="login-form">
+      <label>
+        <span>服务器地址</span>
+        <input type="url" id="login-server" placeholder="https://your-domain.com" autocomplete="url">
+      </label>
+      <label>
+        <span>邮箱</span>
+        <input type="email" id="login-email" required autocomplete="username">
+      </label>
+      <label>
+        <span>密码</span>
+        <input type="password" id="login-password" required autocomplete="current-password">
+      </label>
+      <div id="login-error" class="error-bar hidden"></div>
+      <button type="submit" id="login-btn" class="btn-primary btn-block">登录</button>
+    </form>
+  </div>
+
+  <!-- 主视图 -->
+  <div id="main-view" class="hidden">
+    <header class="main-header">
+      <span id="admin-name" class="admin-name"></span>
+      <div class="header-actions">
+        <button id="open-dashboard" class="btn-sm">管理后台</button>
+        <button id="logout-btn" class="btn-sm">退出</button>
+      </div>
+    </header>
+    <div class="search-row">
+      <input type="text" id="search-input" placeholder="搜索项目名称 / slug…">
+    </div>
+    <div id="list-error" class="error-bar hidden"></div>
+    <div id="project-list"></div>
+    <div id="list-status"></div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="common.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

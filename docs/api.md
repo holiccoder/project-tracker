@@ -3,6 +3,7 @@
 所有接口均通过 `Authorization: Bearer <token>` 或请求参数 `token` 进行认证。  
 可接受的 Token：
 
+- 管理员登录 Token（`POST /api/auth/login` 获取，推荐给浏览器插件等客户端使用）
 - `API_TOKEN`（推荐，用于新接口）
 - `DEV_LOG_API_TOKEN`（兼容原有开发日志接口）
 
@@ -13,11 +14,13 @@ Base URL：`https://your-domain.com/api`
 ## 目录
 
 - [通用约定](#通用约定)
+- [管理员登录](#管理员登录)
 - [开发日志](#开发日志)
 - [项目](#项目)
 - [任务](#任务)
 - [问题](#问题)
 - [合同](#合同)
+- [网站账号](#网站账号)
 
 ---
 
@@ -64,6 +67,54 @@ GET /api/projects?token=your-api-token
 ### 时间格式
 
 所有时间字段均为 ISO 8601 格式，如 `2026-08-03T05:42:00.000000Z`；日期字段为 `Y-m-d` 格式，如 `2026-08-03`。
+
+---
+
+## 管理员登录
+
+### 登录获取 Token
+
+```http
+POST /api/auth/login
+```
+
+**Body 参数：**
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| email | string | 是 | 管理员邮箱 |
+| password | string | 是 | 管理员密码 |
+
+**响应示例：**
+
+```json
+{
+  "token": "1|xxxxxxxx",
+  "admin": {
+    "id": 1,
+    "name": "管理员",
+    "email": "admin@example.com"
+  }
+}
+```
+
+凭据错误返回 `401`。此后请求携带 `Authorization: Bearer <token>` 即可访问全部 API。
+
+### 当前登录管理员
+
+```http
+GET /api/auth/me
+```
+
+返回当前登录管理员的 `id`、`name`、`email`。
+
+### 退出登录
+
+```http
+POST /api/auth/logout
+```
+
+撤销当前使用的 Token。
 
 ---
 
@@ -549,6 +600,92 @@ GET /api/contracts/{contract}/download
 ```
 
 返回文件下载响应。
+
+---
+
+## 网站账号
+
+项目下的网站登录账号（一个项目可以有多个账号）。密码在数据库中加密存储，接口返回明文，便于客户端自动填写登录。
+
+### 列表账号
+
+```http
+GET /api/accounts
+```
+
+**Query 参数：**
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| project_id | integer | 否 | 按项目过滤 |
+| search | string | 否 | 模糊匹配网站名称 / 用户名 |
+
+**响应示例：**
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "project_id": 3,
+      "project_name": "示例项目",
+      "website_name": "客户后台",
+      "login_url": "https://example.com/login",
+      "username": "boss",
+      "password": "plain-secret",
+      "note": null,
+      "created_at": "2026-08-19T00:00:00.000000Z",
+      "updated_at": "2026-08-19T00:00:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 50,
+    "total": 1
+  }
+}
+```
+
+### 创建账号
+
+```http
+POST /api/accounts
+```
+
+**Body 参数：**
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| project_id | integer | 是 | 所属项目 ID |
+| website_name | string | 是 | 网站名称 |
+| login_url | string | 是 | 登录地址（URL） |
+| username | string | 是 | 登录用户名 |
+| password | string | 是 | 登录密码（加密存储） |
+| note | string | 否 | 备注 |
+
+成功返回 `201` 与账号对象。
+
+### 查看账号
+
+```http
+GET /api/accounts/{account}
+```
+
+### 更新账号
+
+```http
+PUT /api/accounts/{account}
+PATCH /api/accounts/{account}
+```
+
+字段同创建，均为可选（传什么改什么）。
+
+### 删除账号
+
+```http
+DELETE /api/accounts/{account}
+```
 
 ---
 

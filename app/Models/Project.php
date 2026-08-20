@@ -111,6 +111,11 @@ class Project extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function accounts(): HasMany
+    {
+        return $this->hasMany(Account::class);
+    }
+
     public function invitations(): HasMany
     {
         return $this->hasMany(ProjectInvitation::class);

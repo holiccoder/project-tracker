@@ -5,13 +5,14 @@ namespace App\Filament\Resources\Projects;
 use App\Filament\Resources\Projects\Pages\CreateProject;
 use App\Filament\Resources\Projects\Pages\EditProject;
 use App\Filament\Resources\Projects\Pages\ListProjects;
+use App\Filament\Resources\Projects\RelationManagers\AccountsRelationManager;
 use App\Filament\Resources\Projects\RelationManagers\ContractsRelationManager;
 use App\Filament\Resources\Projects\RelationManagers\DevLogsRelationManager;
+use App\Filament\Resources\Projects\RelationManagers\InvitationsRelationManager;
 use App\Filament\Resources\Projects\RelationManagers\IssuesRelationManager;
 use App\Filament\Resources\Projects\RelationManagers\MembersRelationManager;
-use App\Filament\Resources\Projects\RelationManagers\TasksRelationManager;
 use App\Filament\Resources\Projects\RelationManagers\PaymentsRelationManager;
-use App\Filament\Resources\Projects\RelationManagers\InvitationsRelationManager;
+use App\Filament\Resources\Projects\RelationManagers\TasksRelationManager;
 use App\Filament\Resources\Projects\Schemas\ProjectForm;
 use App\Filament\Resources\Projects\Tables\ProjectsTable;
 use App\Models\Project;
@@ -57,6 +58,7 @@ class ProjectResource extends Resource
             IssuesRelationManager::class,
             PaymentsRelationManager::class,
             InvitationsRelationManager::class,
+            AccountsRelationManager::class,
         ];
     }
 

@@ -29,7 +29,7 @@ echo "[3/7] running database migrations"
 "$PHP_BIN" artisan migrate --force
 
 echo "[4/7] building frontend assets"
-"$NPM_BIN" ci --no-audit --no-fund --legacy-peer-deps
+"$NPM_BIN" ci --legacy-peer-deps --no-audit --no-fund
 "$NPM_BIN" run build
 
 echo "[5/7] caching config, routes and views"
