@@ -26,7 +26,7 @@ if [ ! -f .env ]; then
 fi
 
 echo "[3/7] running database migrations"
-"$PHP_BIN" artisan migrate --force
+"$PHP_BIN" artisan migrate --force --seed
 
 echo "[4/7] building frontend assets"
 "$NPM_BIN" ci --legacy-peer-deps --no-audit --no-fund

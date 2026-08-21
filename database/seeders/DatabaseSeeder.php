@@ -26,11 +26,13 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
-        $admin = Admin::query()->firstOrNew();
-        $admin->name = config('admin.name');
-        $admin->email = config('admin.email');
-        $admin->password = config('admin.password');
-        $admin->email_verified_at = now();
-        $admin->save();
+        Admin::updateOrCreate(
+            ['email' => config('admin.email')],
+            [
+                'name' => config('admin.name'),
+                'password' => config('admin.password'),
+                'email_verified_at' => now(),
+            ],
+        );
     }
 }
