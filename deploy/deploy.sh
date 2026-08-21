@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_DIR="${PROJECT_DIR:-/www/wwwroot/projects.sachu.tech}"
+PROJECT_DIR="${PROJECT_DIR:-/www/wwwroot/projects.burongdi.xyz}"
 WEB_USER="${WEB_USER:-www}"
 PHP_BIN="${PHP_BIN:-php}"
 COMPOSER_BIN="${COMPOSER_BIN:-composer}"

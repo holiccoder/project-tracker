@@ -16,7 +16,11 @@ const Auth = {
       'token',
       'admin',
     ]);
-    return { serverUrl: serverUrl || '', token: token || '', admin: admin || null };
+    return {
+      serverUrl: serverUrl || (typeof EXTENSION_CONFIG !== 'undefined' ? EXTENSION_CONFIG.serverUrl : '') || '',
+      token: token || '',
+      admin: admin || null,
+    };
   },
 
   async saveSession({ serverUrl, token, admin }) {
