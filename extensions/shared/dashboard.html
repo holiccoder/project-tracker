@@ -2,169 +2,123 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>项目助手 · 管理后台</title>
+  <title>Project Assistant</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
-  <!-- 登录视图 -->
   <div id="login-view" class="hidden">
     <div class="login-box">
       <div class="login-header">
         <img src="icons/icon48.png" alt="" width="36" height="36">
-        <h1>项目助手</h1>
+        <h1>Project Assistant</h1>
       </div>
       <form id="login-form">
-        <label>
-          <span>服务器地址</span>
-          <input type="url" id="login-server" placeholder="https://your-domain.com" autocomplete="url">
-        </label>
-        <label>
-          <span>邮箱</span>
-          <input type="email" id="login-email" required autocomplete="username">
-        </label>
-        <label>
-          <span>密码</span>
-          <input type="password" id="login-password" required autocomplete="current-password">
-        </label>
+        <label><span>Server URL</span><input type="url" id="login-server" placeholder="https://your-domain.com" autocomplete="url"></label>
+        <label><span>Email</span><input type="email" id="login-email" required autocomplete="username"></label>
+        <label><span>Password</span><input type="password" id="login-password" required autocomplete="current-password"></label>
         <div id="login-error" class="error-bar hidden"></div>
-        <button type="submit" id="login-btn" class="btn-primary btn-block">登录</button>
+        <button type="submit" id="login-btn" class="btn-primary btn-block">Sign in</button>
       </form>
     </div>
   </div>
 
-  <!-- 管理后台 -->
   <div id="app-view" class="hidden">
     <header class="app-header">
-      <div class="brand">
-        <img src="icons/icon48.png" alt="" width="28" height="28">
-        <span>项目助手 · 管理后台</span>
-      </div>
-      <div class="header-right">
-        <span id="admin-name"></span>
-        <button id="logout-btn" class="btn-sm">退出登录</button>
-      </div>
+      <div class="brand"><img src="icons/icon48.png" alt="" width="28" height="28"><span>Project Assistant · Admin</span></div>
+      <div class="header-right"><span id="admin-name"></span><button id="logout-btn" class="btn-sm">Sign out</button></div>
     </header>
 
     <nav class="tabs">
-      <button class="tab active" data-tab="accounts">账号管理</button>
-      <button class="tab" data-tab="projects">项目管理</button>
-      <button class="tab" data-tab="tasks">任务管理</button>
-      <button class="tab" data-tab="devlogs">开发日志</button>
+      <button class="tab active" data-tab="accounts">Accounts</button>
+      <button class="tab" data-tab="projects">Projects</button>
+      <button class="tab" data-tab="tasks">Tasks</button>
+      <button class="tab" data-tab="devlogs">Development logs</button>
+      <button class="tab" data-tab="updates">Log updates</button>
+      <button class="tab" data-tab="issues">Issues</button>
+      <button class="tab" data-tab="contracts">Contracts</button>
+      <button class="tab" data-tab="users">Users</button>
     </nav>
 
     <div id="error-bar" class="error-bar hidden"></div>
 
     <main>
-      <!-- 账号管理 -->
       <section id="tab-accounts" class="tab-panel">
         <div class="toolbar">
-          <select id="acc-filter-project"><option value="">全部项目</option></select>
-          <input type="text" id="acc-filter-search" placeholder="搜索网站名称 / 用户名…">
-          <button id="acc-new" class="btn-primary">新建账号</button>
+          <select id="acc-filter-project"><option value="">All projects</option></select>
+          <input type="text" id="acc-filter-search" placeholder="Search website / username">
+          <button id="acc-new" class="btn-primary">New account</button>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>网站名称</th>
-                <th>所属项目</th>
-                <th>用户名</th>
-                <th>密码</th>
-                <th>登录地址</th>
-                <th>备注</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody id="acc-tbody"></tbody>
-          </table>
-        </div>
+        <div class="table-wrap"><table><thead><tr><th>Website</th><th>Project</th><th>Username</th><th>Password</th><th>Login URL</th><th>Note</th><th>Actions</th></tr></thead><tbody id="acc-tbody"></tbody></table></div>
         <div id="acc-footer" class="list-footer"></div>
       </section>
 
-      <!-- 项目管理 -->
       <section id="tab-projects" class="tab-panel hidden">
         <div class="toolbar">
-          <input type="text" id="proj-filter-search" placeholder="搜索项目名称 / slug…">
-          <button id="proj-new" class="btn-primary">新建项目</button>
+          <input type="text" id="proj-filter-search" placeholder="Search name / slug">
+          <select id="proj-filter-status"><option value="">All statuses</option></select>
+          <button id="proj-new" class="btn-primary">New project</button>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>名称</th>
-                <th>slug</th>
-                <th>状态</th>
-                <th>截止日期</th>
-                <th>创建时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody id="proj-tbody"></tbody>
-          </table>
-        </div>
+        <div class="table-wrap"><table><thead><tr><th>Name</th><th>Slug</th><th>Status</th><th>Amount</th><th>Unpaid</th><th>Deadline</th><th>Actions</th></tr></thead><tbody id="proj-tbody"></tbody></table></div>
         <div id="proj-footer" class="list-footer"></div>
       </section>
 
-      <!-- 任务管理 -->
       <section id="tab-tasks" class="tab-panel hidden">
         <div class="toolbar">
-          <select id="task-filter-project"><option value="">全部项目</option></select>
-          <select id="task-filter-status">
-            <option value="">全部状态</option>
-            <option value="pending">待确认</option>
-            <option value="confirmed">已确认</option>
-            <option value="in_progress">进行中</option>
-            <option value="done">已完成</option>
-            <option value="accepted">已验收</option>
-            <option value="rejected">已拒绝</option>
-            <option value="changes_requested">要求修改</option>
-          </select>
+          <select id="task-filter-project"><option value="">All projects</option></select>
+          <select id="task-filter-status"><option value="">All statuses</option></select>
+          <select id="task-filter-priority"><option value="">All priorities</option></select>
+          <button id="task-new" class="btn-primary">New task</button>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>标题</th>
-                <th>所属项目</th>
-                <th>优先级</th>
-                <th>状态</th>
-                <th>截止日期</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody id="task-tbody"></tbody>
-          </table>
-        </div>
+        <div class="table-wrap"><table><thead><tr><th>Title</th><th>Project</th><th>Priority</th><th>Status</th><th>Attachments</th><th>Actions</th></tr></thead><tbody id="task-tbody"></tbody></table></div>
         <div id="task-footer" class="list-footer"></div>
       </section>
 
-      <!-- 开发日志 -->
       <section id="tab-devlogs" class="tab-panel hidden">
         <div class="toolbar">
-          <select id="log-filter-project"><option value="">全部项目</option></select>
-          <select id="log-filter-status">
-            <option value="">全部状态</option>
-            <option value="in_progress">进行中</option>
-            <option value="completed">已完成</option>
-          </select>
+          <select id="log-filter-project"><option value="">All projects</option></select>
+          <select id="log-filter-status"><option value="">All statuses</option></select>
+          <select id="log-filter-category"><option value="">All categories</option></select>
+          <button id="log-new" class="btn-primary">New log</button>
+          <button id="log-batch">Batch logs</button>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>日期</th>
-                <th>所属项目</th>
-                <th>内容</th>
-                <th>状态</th>
-                <th>分类</th>
-                <th>最新进展</th>
-              </tr>
-            </thead>
-            <tbody id="log-tbody"></tbody>
-          </table>
-        </div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Project</th><th>Content</th><th>Status</th><th>Category</th><th>Latest update</th><th>Actions</th></tr></thead><tbody id="log-tbody"></tbody></table></div>
         <div id="log-footer" class="list-footer"></div>
+      </section>
+
+      <section id="tab-updates" class="tab-panel hidden">
+        <div class="toolbar">
+          <select id="update-filter-log"><option value="">All logs</option></select>
+          <button id="update-new" class="btn-primary">New update</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Log</th><th>Project</th><th>Update</th><th>Created</th><th>Actions</th></tr></thead><tbody id="update-tbody"></tbody></table></div>
+        <div id="update-footer" class="list-footer"></div>
+      </section>
+
+      <section id="tab-issues" class="tab-panel hidden">
+        <div class="toolbar">
+          <select id="issue-filter-project"><option value="">All projects</option></select>
+          <select id="issue-filter-status"><option value="">All statuses</option></select>
+          <select id="issue-filter-severity"><option value="">All severities</option></select>
+          <button id="issue-new" class="btn-primary">New issue</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Title</th><th>Project</th><th>Severity</th><th>Status</th><th>Attachment</th><th>Actions</th></tr></thead><tbody id="issue-tbody"></tbody></table></div>
+        <div id="issue-footer" class="list-footer"></div>
+      </section>
+
+      <section id="tab-contracts" class="tab-panel hidden">
+        <div class="toolbar">
+          <select id="contract-filter-project"><option value="">All projects</option></select>
+          <button id="contract-new" class="btn-primary">New contract</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Name</th><th>Project</th><th>File</th><th>Uploaded by</th><th>Actions</th></tr></thead><tbody id="contract-tbody"></tbody></table></div>
+        <div id="contract-footer" class="list-footer"></div>
+      </section>
+
+      <section id="tab-users" class="tab-panel hidden">
+        <div class="toolbar"><input type="text" id="user-filter-search" placeholder="Search name / email / WeChat / phone"><button id="user-new" class="btn-primary">New user</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>WeChat</th><th>Phone</th><th>Projects</th><th>Remark</th><th>Actions</th></tr></thead><tbody id="user-tbody"></tbody></table></div>
+        <div id="user-footer" class="list-footer"></div>
       </section>
     </main>
   </div>

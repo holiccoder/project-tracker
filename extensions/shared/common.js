@@ -1,6 +1,3 @@
-// popup 与 dashboard 共用的 API 客户端与工具函数。
-// 只使用 chrome.* 命名空间的 Promise 形式 API。
-
 class ApiError extends Error {
   constructor(message, code, status) {
     super(message);
@@ -17,7 +14,10 @@ const Auth = {
       'admin',
     ]);
     return {
-      serverUrl: serverUrl || (typeof EXTENSION_CONFIG !== 'undefined' ? EXTENSION_CONFIG.serverUrl : '') || '',
+      serverUrl:
+        serverUrl ||
+        (typeof EXTENSION_CONFIG !== 'undefined' ? EXTENSION_CONFIG.serverUrl : '') ||
+        '',
       token: token || '',
       admin: admin || null,
     };
@@ -40,10 +40,10 @@ function normalizeBaseUrl(serverUrl) {
   return (serverUrl || '').trim().replace(/\/+$/, '');
 }
 
-// 登录：401 → 邮箱或密码错误；网络异常 → 无法连接服务器
 async function apiLogin(serverUrl, email, password) {
   const base = normalizeBaseUrl(serverUrl);
-  if (!base) throw new ApiError('请填写服务器地址', 'NO_SERVER');
+  if (!base) throw new ApiError('Enter the server URL.', 'NO_SERVER');
+
   let res;
   try {
     res = await fetch(`${base}/api/auth/login`, {
@@ -52,25 +52,20 @@ async function apiLogin(serverUrl, email, password) {
       body: JSON.stringify({ email, password }),
     });
   } catch {
-    throw new ApiError('无法连接服务器', 'NETWORK');
+    throw new ApiError('Unable to connect to the server.', 'NETWORK');
   }
-  if (res.status === 401) throw new ApiError('邮箱或密码错误', 'AUTH', 401);
-  let data = null;
-  try {
-    data = await res.json();
-  } catch {
-    data = null;
-  }
-  if (!res.ok) throw new ApiError((data && data.message) || `登录失败 (${res.status})`, 'HTTP', res.status);
-  return data; // { token, admin }
+
+  if (res.status === 401) throw new ApiError('Invalid email or password.', 'AUTH', 401);
+  const data = await parseResponse(res);
+  if (!res.ok) throw httpError(res, data);
+  return data;
 }
 
-// 已认证请求：自动带 token；401 时清掉本地 token 并抛出 AUTH 错误
-async function apiFetch(path, { method = 'GET', body, query } = {}) {
+async function apiFetch(path, { method = 'GET', body, query, headers = {} } = {}) {
   const { serverUrl, token } = await Auth.getSession();
   const base = normalizeBaseUrl(serverUrl);
-  if (!base) throw new ApiError('请先在登录页配置服务器地址', 'NO_SERVER');
-  if (!token) throw new ApiError('未登录', 'AUTH', 401);
+  if (!base) throw new ApiError('Configure the server URL first.', 'NO_SERVER');
+  if (!token) throw new ApiError('You are not signed in.', 'AUTH', 401);
 
   const url = new URL(base + path);
   for (const [key, value] of Object.entries(query || {})) {
@@ -79,47 +74,109 @@ async function apiFetch(path, { method = 'GET', body, query } = {}) {
     }
   }
 
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+  const requestHeaders = {
+    Accept: 'application/json',
+    Authorization: `Bearer ${token}`,
+    ...headers,
+  };
+  let requestMethod = method;
+  let requestBody = body;
+
+  if (isForm) {
+    // Laravel's multipart method spoofing keeps file updates compatible with
+    // the same PUT/PATCH resource endpoint used by JSON clients.
+    if (['PUT', 'PATCH', 'DELETE'].includes(method) && !body.has('_method')) {
+      body.append('_method', method);
+      requestMethod = 'POST';
+    }
+  } else if (body !== undefined) {
+    requestHeaders['Content-Type'] = 'application/json';
+    requestBody = JSON.stringify(body);
+  }
+
   let res;
   try {
     res = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      method: requestMethod,
+      headers: requestHeaders,
+      body: requestBody,
     });
   } catch {
-    throw new ApiError('无法连接服务器', 'NETWORK');
+    throw new ApiError('Unable to connect to the server.', 'NETWORK');
   }
 
   if (res.status === 401) {
     await Auth.clear();
-    throw new ApiError('登录已过期，请重新登录', 'AUTH', 401);
+    throw new ApiError('Your session expired. Sign in again.', 'AUTH', 401);
   }
 
-  let data = null;
-  try {
-    data = await res.json();
-  } catch {
-    data = null;
-  }
-  if (!res.ok) {
-    const message =
-      (data && data.message) ||
-      (data && data.errors && Object.values(data.errors).flat().join('；')) ||
-      `请求失败 (${res.status})`;
-    throw new ApiError(message, 'HTTP', res.status);
-  }
+  const data = await parseResponse(res);
+  if (!res.ok) throw httpError(res, data);
   return data;
+}
+
+async function parseResponse(res) {
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+function httpError(res, data) {
+  const errors = data && data.errors ? Object.values(data.errors).flat().join(' ') : '';
+  return new ApiError(
+    (data && data.message) || errors || `Request failed (${res.status}).`,
+    'HTTP',
+    res.status,
+  );
+}
+
+async function apiDownload(path, filename) {
+  const { serverUrl, token } = await Auth.getSession();
+  const base = normalizeBaseUrl(serverUrl);
+  if (!base) throw new ApiError('Configure the server URL first.', 'NO_SERVER');
+  if (!token) throw new ApiError('You are not signed in.', 'AUTH', 401);
+
+  let res;
+  try {
+    res = await fetch(base + path, {
+      headers: { Accept: '*/*', Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    throw new ApiError('Unable to connect to the server.', 'NETWORK');
+  }
+
+  if (res.status === 401) {
+    await Auth.clear();
+    throw new ApiError('Your session expired. Sign in again.', 'AUTH', 401);
+  }
+  if (!res.ok) throw httpError(res, await parseResponse(res));
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename || 'download';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 async function apiLogout() {
   try {
     await apiFetch('/api/auth/logout', { method: 'POST' });
   } catch {
-    // 即使接口失败也要清理本地会话
+    // Local session cleanup is still required when the server is unavailable.
   }
   await Auth.clear();
 }
@@ -128,16 +185,19 @@ async function fetchMe() {
   return apiFetch('/api/auth/me');
 }
 
-// 拉取全部项目（用于下拉框），逐页请求直到最后一页
-async function fetchAllProjects() {
-  const first = await apiFetch('/api/projects', { query: { page: 1 } });
+async function fetchAll(path, query = {}) {
+  const first = await apiFetch(path, { query: { ...query, page: 1 } });
   const items = [...(first.data || [])];
   const lastPage = (first.meta && first.meta.last_page) || 1;
-  for (let page = 2; page <= lastPage; page++) {
-    const res = await apiFetch('/api/projects', { query: { page } });
-    items.push(...(res.data || []));
+  for (let page = 2; page <= lastPage; page += 1) {
+    const response = await apiFetch(path, { query: { ...query, page } });
+    items.push(...(response.data || []));
   }
   return items;
+}
+
+async function fetchAllProjects() {
+  return fetchAll('/api/projects');
 }
 
 function debounce(fn, delay) {
@@ -157,6 +217,6 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-async function copyText(text) {
-  await navigator.clipboard.writeText(text);
+async function copyText(value) {
+  await navigator.clipboard.writeText(value);
 }

@@ -2,8 +2,9 @@
 
 namespace App\Filament\Resources\Users\RelationManagers;
 
-use App\Enums\ProjectUserRole;
 use App\Filament\Resources\Projects\ProjectResource;
+use App\Support\FilamentInputFactory;
+use App\Support\InputSchemaRegistry;
 use Filament\Actions\AttachAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DetachAction;
@@ -25,32 +26,20 @@ class ProjectsRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('name')
             ->columns([
-                TextColumn::make('name')
-                    ->searchable(),
-                TextColumn::make('status')
-                    ->badge()
-                    ->formatStateUsing(fn ($state) => $state->label()),
-                TextColumn::make('pivot.role')
-                    ->label('角色')
-                    ->badge()
-                    ->formatStateUsing(fn (string $state): string => ProjectUserRole::tryFrom($state)?->label() ?? $state)
-                    ->color(fn (string $state): string => $state === ProjectUserRole::Owner->value ? 'purple' : 'gray'),
+                TextColumn::make('name')->searchable(),
+                TextColumn::make('status')->badge(),
+                TextColumn::make('pivot.role')->label(InputSchemaRegistry::field('user_projects', 'role')['label'])->badge(),
                 ToggleColumn::make('can_view_price')
-                    ->label('可查看金额')
+                    ->label(InputSchemaRegistry::field('user_projects', 'can_view_price')['label'])
                     ->getStateUsing(fn ($record): bool => (bool) $record->pivot?->can_view_price),
             ])
             ->headerActions([
                 AttachAction::make()
-                    ->recordSelect(fn (Select $select) => $select->searchable()->preload())
+                    ->recordSelect(fn (Select $select) => $select->label(InputSchemaRegistry::field('user_projects', 'project_id')['label'])->searchable()->preload())
                     ->schema(fn (AttachAction $action): array => [
-                        $action->getRecordSelect(),
-                        Select::make('role')
-                            ->label('角色')
-                            ->options(ProjectUserRole::class)
-                            ->default(ProjectUserRole::Member->value),
-                        \Filament\Forms\Components\Toggle::make('can_view_price')
-                            ->label('允许查看项目金额')
-                            ->default(false),
+                        $action->getRecordSelect()->label(InputSchemaRegistry::field('user_projects', 'project_id')['label']),
+                        FilamentInputFactory::make('user_projects', 'role'),
+                        FilamentInputFactory::make('user_projects', 'can_view_price'),
                     ]),
             ])
             ->recordActions([

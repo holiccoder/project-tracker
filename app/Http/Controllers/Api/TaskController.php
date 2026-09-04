@@ -8,23 +8,17 @@ use App\Http\Controllers\Controller;
 use App\Models\Admin;
 use App\Models\Project;
 use App\Models\Task;
+use App\Support\InputSchemaRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
 class TaskController extends Controller
 {
-    /**
-     * List tasks.
-     *
-     * Query parameters:
-     * - project_id (optional)
-     * - project_slug (optional)
-     * - status (optional)
-     * - priority (optional)
-     */
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -58,7 +52,7 @@ class TaskController extends Controller
         $tasks = $query->latest('created_at')->paginate(50);
 
         return response()->json([
-            'data' => $tasks->map(fn (Task $task) => $this->toArray($task)),
+            'data' => $tasks->map(fn (Task $task): array => $this->toArray($task))->values()->all(),
             'meta' => [
                 'current_page' => $tasks->currentPage(),
                 'last_page' => $tasks->lastPage(),
@@ -68,119 +62,125 @@ class TaskController extends Controller
         ]);
     }
 
-    /**
-     * Show a single task.
-     */
     public function show(Task $task): JsonResponse
     {
-        return response()->json($this->toArray($task->load(['creator', 'comments.author'])));
+        return response()->json($this->toArray($task->load(['project', 'creator', 'comments.author'])));
     }
 
-    /**
-     * Create a new task.
-     *
-     * Body parameters:
-     * - project_id OR project_slug (required)
-     * - title (required)
-     * - description (optional)
-     * - priority (optional, low|medium|high)
-     * - status (optional)
-     * - due_date (optional, Y-m-d)
-     * - created_by (optional, user id)
-     * - attachments (optional, array of files)
-     */
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'project_id' => ['required_without:project_slug', 'integer', 'exists:projects,id'],
-            'project_slug' => ['required_without:project_id', 'string', 'exists:projects,slug'],
-            'title' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'priority' => ['nullable', Rule::enum(TaskPriority::class)],
-            'status' => ['nullable', Rule::enum(TaskStatus::class)],
-            'due_date' => ['nullable', 'date_format:Y-m-d'],
-            'created_by' => ['nullable', 'integer', 'exists:users,id'],
-            'attachments' => ['nullable', 'array'],
-            'attachments.*' => ['file', 'max:10240'],
-        ]);
-
-        $project = $this->findProject($validated);
+        $payload = $this->payloadWithFiles($request);
+        $project = $this->resolveProject($payload);
 
         if (! $project) {
             return response()->json(['message' => 'Project not found.'], 404);
         }
 
-        $attachmentPaths = [];
-        if (! empty($validated['attachments'])) {
-            foreach ($validated['attachments'] as $file) {
-                $attachmentPaths[] = $file->store('task-attachments', 'public');
-            }
+        $payload['project_id'] = $project->id;
+        $payload['priority'] ??= TaskPriority::Medium->value;
+        $payload['status'] ??= TaskStatus::Pending->value;
+
+        $validated = validator($payload, [
+            ...InputSchemaRegistry::rules('tasks', 'create'),
+            'project_slug' => ['sometimes', 'string', 'exists:projects,slug'],
+            'status' => ['sometimes', Rule::enum(TaskStatus::class)],
+            'due_date' => ['nullable', 'date_format:Y-m-d'],
+            'created_by' => ['nullable', 'integer', 'exists:users,id'],
+        ])->validate();
+
+        if (count($validated['attachments'] ?? []) > 10) {
+            throw ValidationException::withMessages([
+                'attachments' => ['A task may have no more than 10 attachments.'],
+            ]);
         }
 
-        $status = $validated['status'] ?? TaskStatus::Pending->value;
+        $attachmentPaths = $this->storeAttachments($validated['attachments'] ?? []);
+        unset($validated['project_slug'], $validated['attachments']);
+
         $task = $project->tasks()->create([
-            'title' => $validated['title'],
-            'description' => $validated['description'] ?? null,
-            'priority' => $validated['priority'] ?? TaskPriority::Medium->value,
-            'status' => $status,
-            'due_date' => $validated['due_date'] ?? null,
-            'created_by' => $validated['created_by'] ?? null,
+            ...$validated,
             'attachments' => $attachmentPaths ?: null,
         ]);
 
         $this->notifyCreation($task, $project);
 
-        return response()->json($this->toArray($task), 201);
+        return response()->json($this->toArray($task->load('project')), 201);
     }
 
-    /**
-     * Update a task.
-     */
     public function update(Request $request, Task $task): JsonResponse
     {
-        $validated = $request->validate([
-            'title' => ['sometimes', 'required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'priority' => ['nullable', Rule::enum(TaskPriority::class)],
-            'due_date' => ['nullable', 'date_format:Y-m-d'],
-            'created_by' => ['nullable', 'integer', 'exists:users,id'],
-        ]);
+        $payload = $this->payloadWithFiles($request);
 
-        $task->update([
-            'title' => $validated['title'] ?? $task->title,
-            'description' => array_key_exists('description', $validated) ? $validated['description'] : $task->description,
-            'priority' => $validated['priority'] ?? $task->priority->value,
-            'due_date' => array_key_exists('due_date', $validated) ? $validated['due_date'] : $task->due_date,
-            'created_by' => array_key_exists('created_by', $validated) ? $validated['created_by'] : $task->created_by,
-        ]);
+        if (array_key_exists('project_slug', $payload) && ! array_key_exists('project_id', $payload)) {
+            $project = Project::where('slug', $payload['project_slug'])->first();
+            if (! $project) {
+                return response()->json(['message' => 'Project not found.'], 404);
+            }
+            $payload['project_id'] = $project->id;
+        }
 
-        return response()->json($this->toArray($task));
+        foreach (['description', 'due_date'] as $key) {
+            if (array_key_exists($key, $payload) && $payload[$key] === '') {
+                $payload[$key] = null;
+            }
+        }
+
+        $validated = validator($payload, [
+            ...InputSchemaRegistry::rules('tasks', 'update'),
+            'project_slug' => ['sometimes', 'string', 'exists:projects,slug'],
+            'due_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'created_by' => ['sometimes', 'nullable', 'integer', 'exists:users,id'],
+            'remove_attachments' => ['sometimes', 'array'],
+            'remove_attachments.*' => ['string'],
+        ])->validate();
+
+        $remove = $validated['remove_attachments'] ?? [];
+        $existing = array_values(array_filter($task->attachments ?? [], 'is_string'));
+        $remaining = [];
+        foreach ($existing as $path) {
+            if (in_array($path, $remove, true)) {
+                if (Storage::disk('public')->exists($path)) {
+                    Storage::disk('public')->delete($path);
+                }
+                continue;
+            }
+            $remaining[] = $path;
+        }
+
+        $newPaths = $this->storeAttachments($validated['attachments'] ?? []);
+        if (count($remaining) + count($newPaths) > 10) {
+            foreach ($newPaths as $path) {
+                Storage::disk('public')->delete($path);
+            }
+            throw ValidationException::withMessages([
+                'attachments' => ['A task may have no more than 10 attachments.'],
+            ]);
+        }
+
+        unset($validated['attachments'], $validated['remove_attachments'], $validated['project_slug']);
+        $changes = $validated;
+        if ($newPaths !== [] || $remove !== []) {
+            $changes['attachments'] = ($remaining + $newPaths) ?: null;
+        }
+
+        // Status is intentionally absent from the shared edit schema. State
+        // changes go through updateStatus(), so a direct status payload cannot
+        // mutate the state machine.
+        unset($changes['status']);
+        $task->update($changes);
+
+        return response()->json($this->toArray($task->refresh()->load('project')));
     }
 
-    /**
-     * Update task status using state machine transitions.
-     *
-     * Body parameters:
-     * - action (required): confirm|reject|start|restart|complete|accept|request_changes
-     * - reject_reason (required when action=reject)
-     */
     public function updateStatus(Request $request, Task $task): JsonResponse
     {
         $validated = $request->validate([
-            'action' => ['required', 'string', Rule::in([
-                'confirm',
-                'reject',
-                'start',
-                'restart',
-                'complete',
-                'accept',
-                'request_changes',
-            ])],
+            'action' => ['required', Rule::in(array_column(InputSchemaRegistry::contract()['actions']['tasks'], 'name'))],
             'reject_reason' => ['required_if:action,reject', 'nullable', 'string'],
         ]);
 
         if ($validated['action'] === 'reject' && blank($validated['reject_reason'] ?? null)) {
-            return response()->json(['message' => '拒绝任务必须填写原因'], 422);
+            return response()->json(['message' => 'Rejection reason is required.'], 422);
         }
 
         $status = match ($validated['action']) {
@@ -188,8 +188,6 @@ class TaskController extends Controller
             'reject' => TaskStatus::Rejected,
             'start', 'restart' => TaskStatus::InProgress,
             'complete' => TaskStatus::Done,
-            'accept' => TaskStatus::Accepted,
-            'request_changes' => TaskStatus::ChangesRequested,
         };
 
         try {
@@ -198,12 +196,9 @@ class TaskController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        return response()->json($this->toArray($task));
+        return response()->json($this->toArray($task->refresh()->load('project')));
     }
 
-    /**
-     * Delete a task.
-     */
     public function destroy(Task $task): JsonResponse
     {
         $task->delete();
@@ -211,37 +206,58 @@ class TaskController extends Controller
         return response()->json(['message' => 'Task deleted.']);
     }
 
-    /**
-     * Download a task attachment.
-     */
-    public function downloadAttachment(Request $request, Task $task, string $path)
+    public function downloadAttachment(Task $task, string $path)
     {
         abort_unless(in_array($path, $task->attachments ?? [], true), 404);
 
         if (! Storage::disk('public')->exists($path)) {
-            abort(404, '附件不存在');
+            abort(404, 'Attachment not found.');
         }
 
         return Storage::disk('public')->download($path, basename($path));
     }
 
-    private function findProject(array $validated): ?Project
+    private function payloadWithFiles(Request $request): array
     {
-        if (! empty($validated['project_id'])) {
-            return Project::find($validated['project_id']);
+        $payload = $request->all();
+        if ($request->hasFile('attachments')) {
+            $payload['attachments'] = $request->file('attachments');
         }
 
-        return Project::where('slug', $validated['project_slug'])->first();
+        return $payload;
+    }
+
+    private function resolveProject(array $payload): ?Project
+    {
+        if (! empty($payload['project_id'])) {
+            return Project::find($payload['project_id']);
+        }
+
+        if (! empty($payload['project_slug'])) {
+            return Project::where('slug', $payload['project_slug'])->first();
+        }
+
+        return null;
+    }
+
+    /** @param array<int, \Illuminate\Http\UploadedFile> $files */
+    private function storeAttachments(array $files): array
+    {
+        $paths = [];
+        foreach ($files as $file) {
+            $paths[] = $file->store('task-attachments', 'public');
+        }
+
+        return $paths;
     }
 
     private function notifyCreation(Task $task, Project $project): void
     {
-        $admins = Admin::all();
-        \Illuminate\Support\Facades\Notification::send($admins, new \App\Notifications\TaskDelegatedNotification($task));
+        Notification::send(Admin::all(), new \App\Notifications\TaskDelegatedNotification($task));
 
         $membersToNotify = $project->members;
         if ($membersToNotify->isNotEmpty()) {
-            \Illuminate\Support\Facades\Notification::send($membersToNotify, new \App\Notifications\TaskDelegatedNotification($task));
+            Notification::send($membersToNotify, new \App\Notifications\TaskDelegatedNotification($task));
         }
     }
 
@@ -267,15 +283,15 @@ class TaskController extends Controller
             ] : null,
             'attachments' => $this->attachments($task),
             'comments' => $task->relationLoaded('comments')
-                ? $task->comments->map(fn ($c) => [
-                    'id' => $c->id,
-                    'body' => $c->body,
-                    'author' => $c->author ? [
-                        'id' => $c->author->id,
-                        'name' => $c->author->name,
-                        'is_admin' => $c->author_type === Admin::class,
+                ? $task->comments->map(fn ($comment): array => [
+                    'id' => $comment->id,
+                    'body' => $comment->body,
+                    'author' => $comment->author ? [
+                        'id' => $comment->author->id,
+                        'name' => $comment->author->name,
+                        'is_admin' => $comment->author_type === Admin::class,
                     ] : null,
-                    'created_at' => $c->created_at?->toISOString(),
+                    'created_at' => $comment->created_at?->toISOString(),
                 ])->values()->all()
                 : null,
             'created_at' => $task->created_at?->toISOString(),
@@ -285,19 +301,14 @@ class TaskController extends Controller
 
     private function attachments(Task $task): array
     {
-        $attachments = [];
-
-        foreach ($task->attachments ?? [] as $path) {
-            if (! is_string($path)) {
-                continue;
-            }
-
-            $attachments[] = [
+        return collect($task->attachments ?? [])
+            ->filter(fn ($path): bool => is_string($path))
+            ->map(fn (string $path): array => [
+                'path' => $path,
                 'name' => basename($path),
                 'url' => Storage::disk('public')->url($path),
-            ];
-        }
-
-        return $attachments;
+            ])
+            ->values()
+            ->all();
     }
 }

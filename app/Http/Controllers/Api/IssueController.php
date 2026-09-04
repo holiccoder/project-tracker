@@ -7,6 +7,8 @@ use App\Enums\IssueStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Issue;
 use App\Models\Project;
+use App\Support\CurrentAdmin;
+use App\Support\InputSchemaRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -15,15 +17,6 @@ use InvalidArgumentException;
 
 class IssueController extends Controller
 {
-    /**
-     * List issues.
-     *
-     * Query parameters:
-     * - project_id (optional)
-     * - project_slug (optional)
-     * - status (optional)
-     * - severity (optional)
-     */
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -57,7 +50,7 @@ class IssueController extends Controller
         $issues = $query->latest('created_at')->paginate(50);
 
         return response()->json([
-            'data' => $issues->map(fn (Issue $issue) => $this->toArray($issue)),
+            'data' => $issues->map(fn (Issue $issue): array => $this->toArray($issue))->values()->all(),
             'meta' => [
                 'current_page' => $issues->currentPage(),
                 'last_page' => $issues->lastPage(),
@@ -67,76 +60,77 @@ class IssueController extends Controller
         ]);
     }
 
-    /**
-     * Show a single issue.
-     */
     public function show(Issue $issue): JsonResponse
     {
-        return response()->json($this->toArray($issue->load(['creator', 'comments.author'])));
+        return response()->json($this->toArray($issue->load(['project', 'creator', 'comments.author'])));
     }
 
-    /**
-     * Create a new issue.
-     *
-     * Body parameters:
-     * - project_id OR project_slug (required)
-     * - title (required)
-     * - description (optional)
-     * - severity (optional, normal|serious|blocking)
-     * - status (optional)
-     * - attachment (optional, file)
-     * - created_by (required, admin id)
-     */
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'project_id' => ['required_without:project_slug', 'integer', 'exists:projects,id'],
-            'project_slug' => ['required_without:project_id', 'string', 'exists:projects,slug'],
-            'title' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'severity' => ['nullable', Rule::enum(IssueSeverity::class)],
-            'status' => ['nullable', Rule::enum(IssueStatus::class)],
-            'attachment' => ['nullable', 'file', 'max:10240'],
-            'created_by' => ['required', 'integer', 'exists:admins,id'],
-        ]);
+        $payload = $request->all();
+        if ($request->hasFile('attachment')) {
+            $payload['attachment'] = $request->file('attachment');
+        }
 
-        $project = $this->findProject($validated);
-
+        $project = $this->resolveProject($payload);
         if (! $project) {
             return response()->json(['message' => 'Project not found.'], 404);
         }
 
-        $attachmentPath = null;
-        if ($request->hasFile('attachment')) {
-            $attachmentPath = $request->file('attachment')->store('issue-attachments', 'local');
-        }
+        $payload['project_id'] = $project->id;
+        $payload['severity'] ??= IssueSeverity::Normal->value;
+        $payload['status'] ??= IssueStatus::Open->value;
+
+        $validated = validator($payload, [
+            ...InputSchemaRegistry::rules('issues', 'create'),
+            'project_slug' => ['sometimes', 'string', 'exists:projects,slug'],
+            'status' => ['sometimes', Rule::enum(IssueStatus::class)],
+        ])->validate();
+
+        $attachmentPath = $request->hasFile('attachment')
+            ? $request->file('attachment')->store('issue-attachments', 'local')
+            : null;
+
+        $adminId = CurrentAdmin::requiredId($request, 'created_by');
+        unset($validated['attachment_path'], $validated['project_slug'], $validated['attachment']);
 
         $issue = $project->issues()->create([
-            'title' => $validated['title'],
-            'description' => $validated['description'] ?? null,
-            'severity' => $validated['severity'] ?? IssueSeverity::Normal->value,
-            'status' => $validated['status'] ?? IssueStatus::Open->value,
+            ...$validated,
             'attachment_path' => $attachmentPath,
-            'created_by' => $validated['created_by'],
+            'created_by' => $adminId,
         ]);
 
-        return response()->json($this->toArray($issue), 201);
+        return response()->json($this->toArray($issue->load('project')), 201);
     }
 
-    /**
-     * Update an issue.
-     */
     public function update(Request $request, Issue $issue): JsonResponse
     {
-        $validated = $request->validate([
-            'title' => ['sometimes', 'required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'severity' => ['nullable', Rule::enum(IssueSeverity::class)],
-            'attachment' => ['nullable', 'file', 'max:10240'],
-            'created_by' => ['sometimes', 'required', 'integer', 'exists:admins,id'],
-        ]);
+        $payload = $request->all();
+        if ($request->hasFile('attachment')) {
+            $payload['attachment'] = $request->file('attachment');
+        }
+
+        foreach (['description'] as $key) {
+            if (array_key_exists($key, $payload) && $payload[$key] === '') {
+                $payload[$key] = null;
+            }
+        }
+
+        $validated = validator($payload, [
+            ...InputSchemaRegistry::rules('issues', 'update'),
+            'project_slug' => ['sometimes', 'string', 'exists:projects,slug'],
+            'created_by' => ['sometimes', 'nullable', 'integer', 'exists:admins,id'],
+            'remove_attachment' => ['sometimes', 'boolean'],
+        ])->validate();
 
         $attachmentPath = $issue->attachment_path;
+        if (($validated['remove_attachment'] ?? false) && $attachmentPath) {
+            if (Storage::disk('local')->exists($attachmentPath)) {
+                Storage::disk('local')->delete($attachmentPath);
+            }
+            $attachmentPath = null;
+        }
+
         if ($request->hasFile('attachment')) {
             if ($attachmentPath && Storage::disk('local')->exists($attachmentPath)) {
                 Storage::disk('local')->delete($attachmentPath);
@@ -144,30 +138,37 @@ class IssueController extends Controller
             $attachmentPath = $request->file('attachment')->store('issue-attachments', 'local');
         }
 
-        $issue->update([
-            'title' => $validated['title'] ?? $issue->title,
-            'description' => array_key_exists('description', $validated) ? $validated['description'] : $issue->description,
-            'severity' => $validated['severity'] ?? $issue->severity->value,
-            'attachment_path' => $attachmentPath,
-            'created_by' => $validated['created_by'] ?? $issue->created_by,
-        ]);
+        if (array_key_exists('project_slug', $validated) && ! array_key_exists('project_id', $validated)) {
+            $project = Project::where('slug', $validated['project_slug'])->first();
+            if (! $project) {
+                return response()->json(['message' => 'Project not found.'], 404);
+            }
+            $validated['project_id'] = $project->id;
+        }
 
-        return response()->json($this->toArray($issue));
+        unset($validated['attachment_path'], $validated['attachment'], $validated['project_slug'], $validated['remove_attachment']);
+        $validated['attachment_path'] = $attachmentPath;
+        unset($validated['status']);
+
+        $issue->update($validated);
+
+        return response()->json($this->toArray($issue->refresh()->load('project')));
     }
 
-    /**
-     * Update issue status using state machine transitions.
-     *
-     * Body parameters:
-     * - status (required): in_progress|resolved|closed
-     */
     public function updateStatus(Request $request, Issue $issue): JsonResponse
     {
         $validated = $request->validate([
-            'status' => ['required', Rule::enum(IssueStatus::class)],
+            'status' => ['required_without:action', Rule::enum(IssueStatus::class)],
+            'action' => ['required_without:status', Rule::in(array_column(InputSchemaRegistry::contract()['actions']['issues'], 'name'))],
         ]);
 
-        $target = IssueStatus::from($validated['status']);
+        $target = isset($validated['action'])
+            ? match ($validated['action']) {
+                'start' => IssueStatus::InProgress,
+                'resolve' => IssueStatus::Resolved,
+                'close' => IssueStatus::Closed,
+            }
+            : IssueStatus::from($validated['status']);
 
         try {
             $issue->transitionTo($target);
@@ -175,12 +176,9 @@ class IssueController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        return response()->json($this->toArray($issue));
+        return response()->json($this->toArray($issue->refresh()->load('project')));
     }
 
-    /**
-     * Delete an issue.
-     */
     public function destroy(Issue $issue): JsonResponse
     {
         $issue->delete();
@@ -188,27 +186,28 @@ class IssueController extends Controller
         return response()->json(['message' => 'Issue deleted.']);
     }
 
-    /**
-     * Download an issue attachment.
-     */
     public function downloadAttachment(Issue $issue)
     {
         abort_unless($issue->attachment_path !== null, 404);
 
         if (! Storage::disk('local')->exists($issue->attachment_path)) {
-            abort(404, '附件不存在');
+            abort(404, 'Attachment not found.');
         }
 
         return Storage::disk('local')->download($issue->attachment_path, basename($issue->attachment_path));
     }
 
-    private function findProject(array $validated): ?Project
+    private function resolveProject(array $payload): ?Project
     {
-        if (! empty($validated['project_id'])) {
-            return Project::find($validated['project_id']);
+        if (! empty($payload['project_id'])) {
+            return Project::find($payload['project_id']);
         }
 
-        return Project::where('slug', $validated['project_slug'])->first();
+        if (! empty($payload['project_slug'])) {
+            return Project::where('slug', $payload['project_slug'])->first();
+        }
+
+        return null;
     }
 
     private function toArray(Issue $issue): array
@@ -224,21 +223,26 @@ class IssueController extends Controller
             'status' => $issue->status->value,
             'status_label' => $issue->status->label(),
             'resolved_at' => $issue->resolved_at?->toISOString(),
+            'attachment' => $issue->attachment_path ? [
+                'path' => $issue->attachment_path,
+                'name' => basename($issue->attachment_path),
+                'url' => Storage::disk('local')->url($issue->attachment_path),
+            ] : null,
             'attachment_url' => $issue->attachment_path ? Storage::disk('local')->url($issue->attachment_path) : null,
             'created_by' => $issue->creator ? [
                 'id' => $issue->creator->id,
                 'name' => $issue->creator->name,
             ] : null,
             'comments' => $issue->relationLoaded('comments')
-                ? $issue->comments->map(fn ($c) => [
-                    'id' => $c->id,
-                    'body' => $c->body,
-                    'author' => $c->author ? [
-                        'id' => $c->author->id,
-                        'name' => $c->author->name,
-                        'is_admin' => $c->author_type === \App\Models\Admin::class,
+                ? $issue->comments->map(fn ($comment): array => [
+                    'id' => $comment->id,
+                    'body' => $comment->body,
+                    'author' => $comment->author ? [
+                        'id' => $comment->author->id,
+                        'name' => $comment->author->name,
+                        'is_admin' => $comment->author_type === \App\Models\Admin::class,
                     ] : null,
-                    'created_at' => $c->created_at?->toISOString(),
+                    'created_at' => $comment->created_at?->toISOString(),
                 ])->values()->all()
                 : null,
             'created_at' => $issue->created_at?->toISOString(),

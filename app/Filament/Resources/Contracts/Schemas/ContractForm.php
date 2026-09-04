@@ -2,9 +2,8 @@
 
 namespace App\Filament\Resources\Contracts\Schemas;
 
-use Filament\Forms\Components\FileUpload;
+use App\Support\FilamentInputFactory;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 
@@ -14,23 +13,14 @@ class ContractForm
     {
         return $schema
             ->components([
-                Select::make('project_id')
-                    ->label('项目')
+                FilamentInputFactory::make('contracts', 'project_id')
                     ->relationship('project', 'name')
                     ->searchable()
                     ->preload()
                     ->required(fn (Select $component): bool => ! $component->getLivewire() instanceof RelationManager)
                     ->visible(fn (Select $component): bool => ! $component->getLivewire() instanceof RelationManager),
-                TextInput::make('name')
-                    ->label('文件名')
-                    ->required()
-                    ->maxLength(255),
-                FileUpload::make('file_path')
-                    ->label('合同文件')
-                    ->disk('local')
-                    ->directory('contracts')
-                    ->preserveFilenames()
-                    ->required(),
+                FilamentInputFactory::make('contracts', 'name'),
+                FilamentInputFactory::make('contracts', 'file_path'),
             ]);
     }
 }

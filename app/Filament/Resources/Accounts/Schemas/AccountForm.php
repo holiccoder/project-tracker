@@ -2,9 +2,8 @@
 
 namespace App\Filament\Resources\Accounts\Schemas;
 
+use App\Support\FilamentInputFactory;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
 
 class AccountForm
@@ -13,37 +12,16 @@ class AccountForm
     {
         return $schema
             ->components([
-                Select::make('project_id')
-                    ->label('所属项目')
+                FilamentInputFactory::make('accounts', 'project_id')
                     ->relationship('project', 'name')
                     ->searchable()
-                    ->preload()
-                    ->required(),
-                TextInput::make('website_name')
-                    ->label('网站名称')
-                    ->required()
-                    ->maxLength(255),
-                TextInput::make('login_url')
-                    ->label('登录地址')
-                    ->url()
-                    ->required()
-                    ->maxLength(2048)
-                    ->placeholder('https://example.com/login')
-                    ->columnSpanFull(),
-                TextInput::make('username')
-                    ->label('用户名')
-                    ->required()
-                    ->maxLength(255),
-                TextInput::make('password')
-                    ->label('密码')
-                    ->password()
-                    ->revealable()
-                    ->required()
-                    ->maxLength(255),
-                Textarea::make('note')
-                    ->label('备注')
-                    ->rows(3)
-                    ->columnSpanFull(),
+                    ->preload(),
+                FilamentInputFactory::make('accounts', 'website_name'),
+                FilamentInputFactory::make('accounts', 'login_url')->columnSpanFull(),
+                FilamentInputFactory::make('accounts', 'username'),
+                FilamentInputFactory::make('accounts', 'password')
+                    ->dehydrated(fn (?string $state): bool => filled($state)),
+                FilamentInputFactory::make('accounts', 'note')->columnSpanFull(),
             ]);
     }
 }

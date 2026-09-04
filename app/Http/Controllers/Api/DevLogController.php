@@ -7,21 +7,13 @@ use App\Enums\DevLogStatus;
 use App\Http\Controllers\Controller;
 use App\Models\DevLog;
 use App\Models\Project;
+use App\Support\InputSchemaRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class DevLogController extends Controller
 {
-    /**
-     * List development logs.
-     *
-     * Query parameters:
-     * - project_id
-     * - project_slug
-     * - status
-     * - category
-     */
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -55,7 +47,7 @@ class DevLogController extends Controller
         $logs = $query->paginate(50);
 
         return response()->json([
-            'data' => $logs->map(fn (DevLog $log) => $this->toArray($log)),
+            'data' => $logs->map(fn (DevLog $log): array => $this->toArray($log))->values()->all(),
             'meta' => [
                 'current_page' => $logs->currentPage(),
                 'last_page' => $logs->lastPage(),
@@ -65,43 +57,105 @@ class DevLogController extends Controller
         ]);
     }
 
-    /**
-     * Create a new development log.
-     *
-     * Body parameters:
-     * - project_id OR project_slug (required)
-     * - content (required)
-     * - date (optional, Y-m-d)
-     * - status (optional, in_progress|completed)
-     * - category (optional, agent_independent|human_agent_collaboration)
-     */
+    public function show(DevLog $devLog): JsonResponse
+    {
+        return response()->json($this->toArray($devLog->load(['project', 'latestUpdate', 'updates'])));
+    }
+
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'project_id' => ['required_without:project_slug', 'integer', 'exists:projects,id'],
-            'project_slug' => ['required_without:project_id', 'string', 'exists:projects,slug'],
-            'content' => ['required', 'string'],
-            'date' => ['nullable', 'date_format:Y-m-d'],
-            'status' => ['nullable', Rule::enum(DevLogStatus::class)],
-            'category' => ['nullable', Rule::enum(DevLogCategory::class)],
-        ]);
-
-        $project = ! empty($validated['project_id'])
-            ? Project::find($validated['project_id'])
-            : Project::where('slug', $validated['project_slug'])->first();
+        $payload = $request->all();
+        $project = $this->resolveProject($payload);
 
         if (! $project) {
             return response()->json(['message' => 'Project not found.'], 404);
         }
 
-        $log = $project->devLogs()->create([
-            'date' => $validated['date'] ?? now()->toDateString(),
-            'content' => $validated['content'],
-            'status' => $validated['status'] ?? DevLogStatus::InProgress->value,
-            'category' => $validated['category'] ?? DevLogCategory::AgentIndependent->value,
+        $payload['project_id'] = $project->id;
+        $payload['date'] ??= now()->toDateString();
+        $payload['status'] ??= DevLogStatus::InProgress->value;
+        $payload['category'] ??= DevLogCategory::AgentIndependent->value;
+
+        $validated = validator($payload, [
+            ...InputSchemaRegistry::rules('dev_logs', 'create'),
+            'project_slug' => ['sometimes', 'string', 'exists:projects,slug'],
+        ])->validate();
+
+        unset($validated['project_slug']);
+        $log = $project->devLogs()->create($validated);
+
+        return response()->json($this->toArray($log->load('project')), 201);
+    }
+
+    public function update(Request $request, DevLog $devLog): JsonResponse
+    {
+        $payload = $request->all();
+        if (array_key_exists('project_slug', $payload) && ! array_key_exists('project_id', $payload)) {
+            $project = Project::where('slug', $payload['project_slug'])->first();
+            if (! $project) {
+                return response()->json(['message' => 'Project not found.'], 404);
+            }
+            $payload['project_id'] = $project->id;
+        }
+
+        if (array_key_exists('date', $payload) && $payload['date'] === '') {
+            $payload['date'] = null;
+        }
+
+        $validated = validator($payload, [
+            ...InputSchemaRegistry::rules('dev_logs', 'update'),
+            'project_slug' => ['sometimes', 'string', 'exists:projects,slug'],
+        ])->validate();
+
+        unset($validated['project_slug']);
+        $devLog->update($validated);
+
+        return response()->json($this->toArray($devLog->refresh()->load('project', 'latestUpdate')));
+    }
+
+    public function destroy(DevLog $devLog): JsonResponse
+    {
+        $devLog->delete();
+
+        return response()->json(['message' => 'Development log deleted.']);
+    }
+
+    public function batchStore(Request $request, Project $project): JsonResponse
+    {
+        $validated = $request->validate([
+            'logs' => ['required', 'array', 'min:1'],
+            'logs.*' => ['required', 'array'],
         ]);
 
-        return response()->json($this->toArray($log), 201);
+        $logs = [];
+        foreach ($validated['logs'] as $entry) {
+            $payload = [
+                'project_id' => $project->id,
+                ...$entry,
+            ];
+            $payload['date'] ??= now()->toDateString();
+            $payload['status'] ??= DevLogStatus::InProgress->value;
+            $payload['category'] ??= DevLogCategory::AgentIndependent->value;
+            $entryValidated = validator($payload, InputSchemaRegistry::rules('dev_logs', 'create'))->validate();
+            $logs[] = $project->devLogs()->create($entryValidated);
+        }
+
+        return response()->json([
+            'data' => collect($logs)->map(fn (DevLog $log): array => $this->toArray($log->load('project')))->values()->all(),
+        ], 201);
+    }
+
+    private function resolveProject(array $payload): ?Project
+    {
+        if (! empty($payload['project_id'])) {
+            return Project::find($payload['project_id']);
+        }
+
+        if (! empty($payload['project_slug'])) {
+            return Project::where('slug', $payload['project_slug'])->first();
+        }
+
+        return null;
     }
 
     private function toArray(DevLog $log): array
@@ -123,6 +177,15 @@ class DevLogController extends Controller
                 'created_at' => $log->latestUpdate->created_at?->toISOString(),
                 'updated_at' => $log->latestUpdate->updated_at?->toISOString(),
             ] : null,
+            'updates' => $log->relationLoaded('updates')
+                ? $log->updates->map(fn ($update): array => [
+                    'id' => $update->id,
+                    'dev_log_id' => $update->dev_log_id,
+                    'update' => $update->update,
+                    'created_at' => $update->created_at?->toISOString(),
+                    'updated_at' => $update->updated_at?->toISOString(),
+                ])->values()->all()
+                : null,
             'created_at' => $log->created_at?->toISOString(),
             'updated_at' => $log->updated_at?->toISOString(),
         ];

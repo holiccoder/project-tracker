@@ -2,8 +2,7 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
+use App\Support\FilamentInputFactory;
 use Filament\Schemas\Schema;
 
 class UserForm
@@ -12,34 +11,13 @@ class UserForm
     {
         return $schema
             ->components([
-                TextInput::make('name')
-                    ->label('姓名')
-                    ->required()
-                    ->maxLength(255),
-                TextInput::make('email')
-                    ->label('邮箱')
-                    ->email()
-                    ->unique(ignoreRecord: true)
-                    ->required(),
-                TextInput::make('wechat')
-                    ->label('微信')
-                    ->maxLength(255),
-                TextInput::make('phone')
-                    ->label('手机号码')
-                    ->tel()
-                    ->maxLength(255),
-                Textarea::make('remark')
-                    ->label('备注(仅后台可见)')
-                    ->rows(2)
-                    ->helperText('给客户起的备注名,客户前端不可见')
-                    ->columnSpanFull(),
-                TextInput::make('password')
-                    ->label('初始密码')
-                    ->password()
-                    ->revealable()
-                    ->required(fn (string $operation): bool => $operation === 'create')
-                    ->dehydrated(fn (?string $state): bool => filled($state))
-                    ->helperText('创建时必填,编辑时留空则不修改'),
+                FilamentInputFactory::make('users', 'name'),
+                FilamentInputFactory::make('users', 'email'),
+                FilamentInputFactory::make('users', 'wechat'),
+                FilamentInputFactory::make('users', 'phone'),
+                FilamentInputFactory::make('users', 'remark'),
+                FilamentInputFactory::make('users', 'password')
+                    ->dehydrated(fn (?string $state): bool => filled($state)),
             ]);
     }
 }

@@ -13,12 +13,18 @@ cd "$PROJECT_DIR"
 exec 9>"$LOCK_FILE"
 flock -n 9 || { echo "deploy already running, aborting"; exit 1; }
 
+PREVIOUS_COMMIT="$(git rev-parse HEAD 2>/dev/null || true)"
+
 echo "[1/7] pulling latest code"
 git fetch origin main
 git reset --hard origin/main
 
 echo "[2/7] installing composer dependencies"
-"$COMPOSER_BIN" install --no-dev --optimize-autoloader --prefer-dist --no-interaction
+if [ ! -f vendor/autoload.php ] || [ -z "$PREVIOUS_COMMIT" ] || ! git diff --quiet "$PREVIOUS_COMMIT" HEAD -- composer.json composer.lock; then
+    "$COMPOSER_BIN" install --no-dev --optimize-autoloader --prefer-dist --no-interaction
+else
+    echo "composer dependencies unchanged, skipping install"
+fi
 
 if [ ! -f .env ]; then
     echo "[*] creating .env from server-local .env.production"
@@ -29,7 +35,11 @@ echo "[3/7] running database migrations"
 "$PHP_BIN" artisan migrate --force --seed
 
 echo "[4/7] building frontend assets"
-"$NPM_BIN" ci --legacy-peer-deps --no-audit --no-fund
+if [ ! -d node_modules ] || [ -z "$PREVIOUS_COMMIT" ] || ! git diff --quiet "$PREVIOUS_COMMIT" HEAD -- package.json package-lock.json; then
+    "$NPM_BIN" ci --legacy-peer-deps --no-audit --no-fund
+else
+    echo "npm dependencies unchanged, skipping install"
+fi
 "$NPM_BIN" run build
 
 echo "[5/7] caching config, routes and views"

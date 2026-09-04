@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use App\Support\InputSchemaRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -68,14 +69,7 @@ class AccountController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'project_id' => ['required', 'integer', 'exists:projects,id'],
-            'website_name' => ['required', 'string', 'max:255'],
-            'login_url' => ['required', 'url', 'max:2048'],
-            'username' => ['required', 'string', 'max:255'],
-            'password' => ['required', 'string', 'max:255'],
-            'note' => ['nullable', 'string'],
-        ]);
+        $validated = validator($this->normalize($request->all()), InputSchemaRegistry::rules('accounts', 'create'))->validate();
 
         $account = Account::create($validated);
 
@@ -87,14 +81,7 @@ class AccountController extends Controller
      */
     public function update(Request $request, Account $account): JsonResponse
     {
-        $validated = $request->validate([
-            'project_id' => ['sometimes', 'required', 'integer', 'exists:projects,id'],
-            'website_name' => ['sometimes', 'required', 'string', 'max:255'],
-            'login_url' => ['sometimes', 'required', 'url', 'max:2048'],
-            'username' => ['sometimes', 'required', 'string', 'max:255'],
-            'password' => ['sometimes', 'required', 'string', 'max:255'],
-            'note' => ['nullable', 'string'],
-        ]);
+        $validated = validator($this->normalize($request->all()), InputSchemaRegistry::rules('accounts', 'update'))->validate();
 
         $account->update($validated);
 
@@ -125,5 +112,14 @@ class AccountController extends Controller
             'created_at' => $account->created_at?->toISOString(),
             'updated_at' => $account->updated_at?->toISOString(),
         ];
+    }
+
+    private function normalize(array $payload): array
+    {
+        if (array_key_exists('note', $payload) && $payload['note'] === '') {
+            $payload['note'] = null;
+        }
+
+        return $payload;
     }
 }

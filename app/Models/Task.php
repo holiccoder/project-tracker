@@ -121,7 +121,7 @@ class Task extends Model
         $this->accepted_at = $target === TaskStatus::Accepted ? now() : $this->accepted_at;
         $this->save();
 
-        $operator = auth('web')->user() ?? auth('admin')->user();
+        $operator = auth('web')->user() ?? auth('admin')->user() ?? auth('sanctum')->user();
         TaskStatusHistory::create([
             'task_id' => $this->id,
             'from_status' => $oldStatus->value,

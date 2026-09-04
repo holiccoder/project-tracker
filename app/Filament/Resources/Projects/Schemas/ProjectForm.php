@@ -2,12 +2,9 @@
 
 namespace App\Filament\Resources\Projects\Schemas;
 
-use App\Enums\ProjectStatus;
-use Filament\Forms\Components\DatePicker;
+use App\Support\FilamentInputFactory;
+use App\Support\InputSchemaRegistry;
 use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 
@@ -17,59 +14,25 @@ class ProjectForm
     {
         return $schema
             ->components([
-                TextInput::make('name')
-                    ->label('项目名称')
-                    ->required()
-                    ->maxLength(255),
-                TextInput::make('slug')
-                    ->label('项目标识')
-                    ->helperText('留空将根据项目名自动生成')
-                    ->maxLength(255),
-                Textarea::make('description')
-                    ->label('项目描述')
-                    ->rows(4)
-                    ->columnSpanFull(),
-                Select::make('members')
-                    ->label('分配客户')
+                FilamentInputFactory::make('projects', 'name'),
+                FilamentInputFactory::make('projects', 'slug'),
+                FilamentInputFactory::make('projects', 'description')->columnSpanFull(),
+                FilamentInputFactory::make('projects', 'members')
                     ->relationship('members', 'name')
-                    ->multiple()
                     ->preload()
                     ->searchable()
                     ->columnSpanFull(),
-                Select::make('status')
-                    ->label('项目状态')
-                    ->options(ProjectStatus::class)
-                    ->default(ProjectStatus::Active->value)
-                    ->required(),
-                TextInput::make('amount')
-                    ->label('项目总额')
-                    ->numeric()
-                    ->minValue(0)
-                    ->prefix('¥')
-                    ->live(),
-                TextInput::make('paid_amount')
-                    ->label('已付金额')
-                    ->numeric()
-                    ->minValue(0)
-                    ->default(0)
-                    ->prefix('¥')
-                    ->live(),
+                FilamentInputFactory::make('projects', 'status'),
+                FilamentInputFactory::make('projects', 'amount')->live(),
+                FilamentInputFactory::make('projects', 'paid_amount')->live(),
                 Placeholder::make('unpaid_amount')
-                    ->label('未付金额')
+                    ->label(InputSchemaRegistry::field('projects', 'unpaid_amount')['label'])
                     ->content(fn (Get $get): ?string => $get('amount') !== null
                         ? number_format((float) $get('amount') - (float) ($get('paid_amount') ?? 0), 2, '.', '')
                         : null),
-                DatePicker::make('deadline')
-                    ->label('截止日期'),
-                TextInput::make('repo_url')
-                    ->label('代码仓库')
-                    ->url()
-                    ->placeholder('https://github.com/...')
-                    ->columnSpanFull(),
-                Textarea::make('remark')
-                    ->label('备注')
-                    ->rows(3)
-                    ->columnSpanFull(),
+                FilamentInputFactory::make('projects', 'deadline'),
+                FilamentInputFactory::make('projects', 'repo_url')->columnSpanFull(),
+                FilamentInputFactory::make('projects', 'remark')->columnSpanFull(),
             ]);
     }
 }

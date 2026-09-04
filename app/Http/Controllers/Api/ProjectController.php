@@ -4,26 +4,18 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\ProjectStatus;
 use App\Http\Controllers\Controller;
-use App\Models\Admin;
 use App\Models\Project;
+use App\Support\CurrentAdmin;
+use App\Support\InputSchemaRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 
 class ProjectController extends Controller
 {
-    /**
-     * List projects.
-     *
-     * Query parameters:
-     * - status (optional)
-     * - search (optional, searches name/slug)
-     */
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'status' => ['nullable', Rule::enum(ProjectStatus::class)],
+            'status' => ['nullable', \Illuminate\Validation\Rule::enum(ProjectStatus::class)],
             'search' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -44,7 +36,7 @@ class ProjectController extends Controller
         $projects = $query->latest('created_at')->paginate(50);
 
         return response()->json([
-            'data' => $projects->map(fn (Project $project) => $this->toArray($project)),
+            'data' => $projects->map(fn (Project $project): array => $this->toArray($project))->values()->all(),
             'meta' => [
                 'current_page' => $projects->currentPage(),
                 'last_page' => $projects->lastPage(),
@@ -54,10 +46,7 @@ class ProjectController extends Controller
         ]);
     }
 
-    /**
-     * Show a single project.
-     */
-    public function show(Request $request, string $project): JsonResponse
+    public function show(Project|string $project): JsonResponse
     {
         $project = $this->findProject($project);
 
@@ -68,60 +57,34 @@ class ProjectController extends Controller
         return response()->json($this->toArray($project->load('members')));
     }
 
-    /**
-     * Create a new project.
-     *
-     * Body parameters:
-     * - name (required)
-     * - slug (required, unique)
-     * - description (optional)
-     * - status (optional, active|delivered|paused)
-     * - amount (optional, numeric)
-     * - paid_amount (optional, numeric)
-     * - deadline (optional, Y-m-d)
-     * - repo_url (optional)
-     * - remark (optional)
-     * - created_by (required, admin id)
-     */
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'slug' => ['required', 'string', 'max:255', 'unique:projects,slug'],
-            'description' => ['nullable', 'string'],
-            'status' => ['nullable', Rule::enum(ProjectStatus::class)],
-            'amount' => ['nullable', 'numeric', 'min:0'],
-            'paid_amount' => ['nullable', 'numeric', 'min:0'],
-            'deadline' => ['nullable', 'date_format:Y-m-d'],
-            'repo_url' => ['nullable', 'string', 'max:2048'],
-            'remark' => ['nullable', 'string'],
-            'created_by' => ['required', 'integer', 'exists:admins,id'],
+        $payload = $this->normalize($request->all());
+        $payload['status'] ??= ProjectStatus::Active->value;
+        $payload['paid_amount'] ??= 0;
+        $payload['slug'] = filled($payload['slug'] ?? null)
+            ? $payload['slug']
+            : InputSchemaRegistry::generatedProjectSlug((string) ($payload['name'] ?? 'project'));
+
+        $validated = validator($payload, InputSchemaRegistry::rules('projects', 'create'))->validate();
+        $adminId = CurrentAdmin::requiredId($request, 'created_by');
+
+        $memberIds = $validated['members'] ?? null;
+        unset($validated['members']);
+
+        $project = Project::create([
+            ...$validated,
+            'created_by' => $adminId,
         ]);
 
-        $admin = Admin::find($validated['created_by']);
+        if ($memberIds !== null) {
+            $project->members()->sync($memberIds);
+        }
 
-        $project = new Project();
-        $project->forceFill([
-            'name' => $validated['name'],
-            'slug' => $validated['slug'],
-            'description' => $validated['description'] ?? null,
-            'status' => $validated['status'] ?? ProjectStatus::Active->value,
-            'amount' => $validated['amount'] ?? null,
-            'paid_amount' => $validated['paid_amount'] ?? 0,
-            'deadline' => $validated['deadline'] ?? null,
-            'repo_url' => $validated['repo_url'] ?? null,
-            'remark' => $validated['remark'] ?? null,
-            'created_by' => $admin->id,
-        ]);
-        $project->save();
-
-        return response()->json($this->toArray($project), 201);
+        return response()->json($this->toArray($project->load('members')), 201);
     }
 
-    /**
-     * Update a project.
-     */
-    public function update(Request $request, string $project): JsonResponse
+    public function update(Request $request, Project|string $project): JsonResponse
     {
         $project = $this->findProject($project);
 
@@ -129,40 +92,32 @@ class ProjectController extends Controller
             return response()->json(['message' => 'Project not found.'], 404);
         }
 
-        $validated = $request->validate([
-            'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'slug' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('projects')->ignore($project->id)],
-            'description' => ['nullable', 'string'],
-            'status' => ['nullable', Rule::enum(ProjectStatus::class)],
-            'amount' => ['nullable', 'numeric', 'min:0'],
-            'paid_amount' => ['nullable', 'numeric', 'min:0'],
-            'deadline' => ['nullable', 'date_format:Y-m-d'],
-            'repo_url' => ['nullable', 'string', 'max:2048'],
-            'remark' => ['nullable', 'string'],
-            'created_by' => ['sometimes', 'required', 'integer', 'exists:admins,id'],
-        ]);
+        $payload = $this->normalize($request->all());
+        if (array_key_exists('slug', $payload) && blank($payload['slug'])) {
+            unset($payload['slug']);
+        }
 
-        $project->forceFill([
-            'name' => $validated['name'] ?? $project->name,
-            'slug' => $validated['slug'] ?? $project->slug,
-            'description' => array_key_exists('description', $validated) ? $validated['description'] : $project->description,
-            'status' => $validated['status'] ?? $project->status->value,
-            'amount' => array_key_exists('amount', $validated) ? $validated['amount'] : $project->amount,
-            'paid_amount' => array_key_exists('paid_amount', $validated) ? $validated['paid_amount'] : $project->paid_amount,
-            'deadline' => array_key_exists('deadline', $validated) ? $validated['deadline'] : $project->deadline,
-            'repo_url' => array_key_exists('repo_url', $validated) ? $validated['repo_url'] : $project->repo_url,
-            'remark' => array_key_exists('remark', $validated) ? $validated['remark'] : $project->remark,
-            'created_by' => $validated['created_by'] ?? $project->created_by,
-        ]);
-        $project->save();
+        $validated = validator($payload, InputSchemaRegistry::rules('projects', 'update', $project->id))->validate();
 
-        return response()->json($this->toArray($project));
+        if (! $request->user('sanctum') && array_key_exists('created_by', $payload)) {
+            $validated['created_by'] = validator($payload, [
+                'created_by' => ['sometimes', 'integer', 'exists:admins,id'],
+            ])->validate()['created_by'];
+        }
+
+        $memberIds = array_key_exists('members', $validated) ? $validated['members'] : null;
+        unset($validated['members']);
+
+        $project->update($validated);
+
+        if ($memberIds !== null) {
+            $project->members()->sync($memberIds);
+        }
+
+        return response()->json($this->toArray($project->refresh()->load('members')));
     }
 
-    /**
-     * Delete a project.
-     */
-    public function destroy(string $project): JsonResponse
+    public function destroy(Project|string $project): JsonResponse
     {
         $project = $this->findProject($project);
 
@@ -175,8 +130,27 @@ class ProjectController extends Controller
         return response()->json(['message' => 'Project deleted.']);
     }
 
-    private function findProject(string $identifier): ?Project
+    private function normalize(array $payload): array
     {
+        foreach (['description', 'deadline', 'repo_url', 'remark'] as $key) {
+            if (array_key_exists($key, $payload) && $payload[$key] === '') {
+                $payload[$key] = null;
+            }
+        }
+
+        if (array_key_exists('members', $payload) && $payload['members'] === '') {
+            $payload['members'] = [];
+        }
+
+        return $payload;
+    }
+
+    private function findProject(Project|string $identifier): ?Project
+    {
+        if ($identifier instanceof Project) {
+            return $identifier;
+        }
+
         if (is_numeric($identifier)) {
             return Project::find($identifier);
         }
@@ -203,7 +177,12 @@ class ProjectController extends Controller
             'tasks_total' => (int) ($project->tasks_total ?? 0),
             'tasks_done' => (int) ($project->tasks_done ?? 0),
             'members' => $project->relationLoaded('members')
-                ? $project->members->map(fn ($m) => ['id' => $m->id, 'name' => $m->name])->values()->all()
+                ? $project->members->map(fn ($member): array => [
+                    'id' => $member->id,
+                    'name' => $member->name,
+                    'role' => $member->pivot?->role,
+                    'can_view_price' => (bool) ($member->pivot?->can_view_price ?? false),
+                ])->values()->all()
                 : null,
             'created_at' => $project->created_at?->toISOString(),
             'updated_at' => $project->updated_at?->toISOString(),

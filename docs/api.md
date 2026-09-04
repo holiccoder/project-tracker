@@ -1,714 +1,181 @@
-# 项目实施与反馈系统 API 文档
+# Project Assistant API
 
-所有接口均通过 `Authorization: Bearer <token>` 或请求参数 `token` 进行认证。  
-可接受的 Token：
+All endpoints except `POST /api/auth/login` require either
+`Authorization: Bearer <token>` or the legacy `token` request parameter. A
+Sanctum admin token issued by the login endpoint is preferred; `API_TOKEN` and
+`DEV_LOG_API_TOKEN` remain accepted for legacy automation.
 
-- 管理员登录 Token（`POST /api/auth/login` 获取，推荐给浏览器插件等客户端使用）
-- `API_TOKEN`（推荐，用于新接口）
-- `DEV_LOG_API_TOKEN`（兼容原有开发日志接口）
-
-Base URL：`https://your-domain.com/api`
-
----
-
-## 目录
-
-- [通用约定](#通用约定)
-- [管理员登录](#管理员登录)
-- [开发日志](#开发日志)
-- [项目](#项目)
-- [任务](#任务)
-- [问题](#问题)
-- [合同](#合同)
-- [网站账号](#网站账号)
-
----
-
-## 通用约定
-
-### 认证方式
+## Shared input contract
 
 ```http
-Authorization: Bearer your-api-token
+GET /api/form-schemas
 ```
 
-或 URL/表单参数：
+The authenticated response contains `models`, `relations`, `actions`, and
+`filters`. Every field definition is the contract used by Filament and the
+browser extension. It includes the ordered field name, label, type,
+`required_on_create`, `required_on_edit`, default, `nullable`, limits,
+relationship metadata, enum `options`, upload rules, visibility conditions,
+`read_only`, and both `request_name` and `api_transport_key`.
+
+The top-level model order is:
+
+- `users`: name, email, wechat, phone, remark, password
+- `projects`: name, slug, description, members, status, amount, paid_amount,
+  unpaid_amount, deadline, repo_url, remark
+- `tasks`: project, title, description, attachments, priority, read-only
+  status, conditional rejection reason
+- `dev_logs`: project, date, status, category, content
+- `dev_log_updates`: development log, update
+- `issues`: project, title, description, attachment, severity, read-only status
+- `contracts`: project, name, contract file
+- `accounts`: project, website name, login URL, username, password, note
+
+`unpaid_amount`, statuses, authors, uploaders, timestamps, and invitation
+tokens are display-only/system-managed. Task and issue status changes must use
+the legal actions returned in `actions`; sending a status in an edit payload
+does not change it.
+
+## Common response and transport rules
+
+List endpoints return `{ "data": [...], "meta": { ... } }`; show/create/update
+endpoints return the resource object. Dates are `Y-m-d`, timestamps are ISO
+8601. Send blank nullable values as JSON `null` (or an empty multipart value)
+to clear them.
+
+Use `multipart/form-data` for uploads. File updates may use POST with a
+`_method=PUT` or `_method=PATCH` override. The API supports multiple task
+attachments, task attachment removal via `remove_attachments[]`, issue
+attachment removal via `remove_attachment`, and replacement of existing
+issue/contract files.
+
+## Authentication and users
 
 ```http
-GET /api/projects?token=your-api-token
+POST   /api/auth/login
+POST   /api/auth/logout
+GET    /api/auth/me
+GET    /api/users?search=...
+POST   /api/users
+GET    /api/users/{user}
+PUT    /api/users/{user}
+DELETE /api/users/{user}
 ```
 
-未认证或 Token 错误返回：
+User fields follow the `users` schema. Passwords are accepted on create and
+are optional when editing; blank edit passwords leave the existing password
+unchanged.
 
-```json
-{
-  "message": "Unauthorized."
-}
-```
-
-### 通用响应格式
-
-列表接口返回分页数据：
-
-```json
-{
-  "data": [...],
-  "meta": {
-    "current_page": 1,
-    "last_page": 1,
-    "per_page": 50,
-    "total": 0
-  }
-}
-```
-
-单个资源返回对象本身。
-
-### 时间格式
-
-所有时间字段均为 ISO 8601 格式，如 `2026-08-03T05:42:00.000000Z`；日期字段为 `Y-m-d` 格式，如 `2026-08-03`。
-
----
-
-## 管理员登录
-
-### 登录获取 Token
+## Projects and memberships
 
 ```http
-POST /api/auth/login
-```
-
-**Body 参数：**
-
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| email | string | 是 | 管理员邮箱 |
-| password | string | 是 | 管理员密码 |
-
-**响应示例：**
-
-```json
-{
-  "token": "1|xxxxxxxx",
-  "admin": {
-    "id": 1,
-    "name": "管理员",
-    "email": "admin@example.com"
-  }
-}
-```
-
-凭据错误返回 `401`。此后请求携带 `Authorization: Bearer <token>` 即可访问全部 API。
-
-### 当前登录管理员
-
-```http
-GET /api/auth/me
-```
-
-返回当前登录管理员的 `id`、`name`、`email`。
-
-### 退出登录
-
-```http
-POST /api/auth/logout
-```
-
-撤销当前使用的 Token。
-
----
-
-## 开发日志
-
-### 列表开发日志
-
-```http
-GET /api/dev-logs
-```
-
-**Query 参数：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| project_id | integer | 否 | 按项目 ID 筛选 |
-| project_slug | string | 否 | 按项目 slug 筛选 |
-| status | string | 否 | `in_progress` / `completed` |
-| category | string | 否 | `agent_independent` / `human_agent_collaboration` |
-
-**响应示例：**
-
-```json
-{
-  "data": [
-    {
-      "id": 1,
-      "project_id": 1,
-      "project_name": "官网改版",
-      "date": "2026-08-02",
-      "content": "完成首页设计稿",
-      "status": "completed",
-      "status_label": "已完成",
-      "category": "agent_independent",
-      "category_label": "AI 自主完成",
-      "latest_update": {
-        "id": 8,
-        "dev_log_id": 1,
-        "update": "补充了接口测试结果",
-        "created_at": "2026-08-03T12:00:00.000000Z",
-        "updated_at": "2026-08-03T12:00:00.000000Z"
-      },
-      "created_at": "2026-08-02T12:00:00.000000Z",
-      "updated_at": "2026-08-02T12:00:00.000000Z"
-    }
-  ],
-  "meta": { "current_page": 1, "last_page": 1, "per_page": 50, "total": 1 }
-}
-```
-
-### 添加开发日志更新
-
-```http
-POST /api/dev-logs/{dev_log}/updates
-```
-
-**Body 参数：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| update | string | 是 | 更新内容 |
-
-**响应示例：**
-
-```json
-{
-  "id": 8,
-  "dev_log_id": 1,
-  "update": "补充了接口测试结果",
-  "created_at": "2026-08-03T12:00:00.000000Z",
-  "updated_at": "2026-08-03T12:00:00.000000Z"
-}
-```
-
-### 更新开发日志更新
-
-```http
-PATCH /api/dev-logs/{dev_log}/updates/{update}
-```
-
-**Body 参数：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| update | string | 是 | 更新内容 |
-
-### 创建开发日志
-
-```http
-POST /api/dev-logs
-```
-
-**Body 参数（`multipart/form-data` 或 `application/json`）：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| project_id | integer | 与 project_slug 二选一 | 项目 ID |
-| project_slug | string | 与 project_id 二选一 | 项目 slug |
-| content | string | 是 | 日志内容 |
-| date | string | 否 | 日期，格式 `Y-m-d`，默认今天 |
-| status | string | 否 | `in_progress` / `completed`，默认 `in_progress` |
-| category | string | 否 | `agent_independent` / `human_agent_collaboration`，默认 `agent_independent` |
-
-**响应：** 201，返回创建的开发日志对象。
-
----
-
-## 项目
-
-### 列表项目
-
-```http
-GET /api/projects
-```
-
-**Query 参数：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| status | string | 否 | `active` / `delivered` / `paused` |
-| search | string | 否 | 按名称或 slug 搜索 |
-
-**响应示例：**
-
-```json
-{
-  "data": [
-    {
-      "id": 1,
-      "name": "官网改版",
-      "slug": "website-redesign",
-      "description": "公司官网全新改版",
-      "status": "active",
-      "status_label": "进行中",
-      "amount": "10000.00",
-      "paid_amount": "5000.00",
-      "unpaid_amount": "5000.00",
-      "deadline": "2026-09-01",
-      "repo_url": "https://github.com/example/website",
-      "remark": "备注",
-      "created_by": 1,
-      "tasks_total": 10,
-      "tasks_done": 3,
-      "members": [
-        { "id": 1, "name": "张三" }
-      ],
-      "created_at": "2026-08-01T00:00:00.000000Z",
-      "updated_at": "2026-08-01T00:00:00.000000Z"
-    }
-  ],
-  "meta": { "current_page": 1, "last_page": 1, "per_page": 50, "total": 1 }
-}
-```
-
-### 获取单个项目
-
-```http
-GET /api/projects/{project}
-```
-
-`{project}` 可以是项目 ID 或 slug。
-
-### 创建项目
-
-```http
-POST /api/projects
-```
-
-**Body 参数：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| name | string | 是 | 项目名称 |
-| slug | string | 是 | 唯一标识 |
-| description | string | 否 | 项目描述 |
-| status | string | 否 | `active` / `delivered` / `paused`，默认 `active` |
-| amount | numeric | 否 | 项目金额 |
-| paid_amount | numeric | 否 | 已付金额，默认 0 |
-| deadline | string | 否 | 截止日期 `Y-m-d` |
-| repo_url | string | 否 | 仓库地址 |
-| remark | string | 否 | 备注 |
-| created_by | integer | 是 | 创建者 admin ID |
-
-**响应：** 201，返回创建的项目对象。
-
-### 更新项目
-
-```http
-PUT /api/projects/{project}
-```
-
-**Body 参数：** 同创建项目，均为可选字段（`name`、`slug`、`created_by` 传值时必填）。
-
-### 删除项目
-
-```http
+GET    /api/projects?status=active&search=...
+POST   /api/projects
+GET    /api/projects/{project}
+PUT    /api/projects/{project}
 DELETE /api/projects/{project}
+GET    /api/projects/{project}/members
+POST   /api/projects/{project}/members
+PATCH  /api/projects/{project}/members/{user}
+DELETE /api/projects/{project}/members/{user}
+GET    /api/users/{user}/projects
+POST   /api/users/{user}/projects
+PATCH  /api/users/{user}/projects/{project}
+DELETE /api/users/{user}/projects/{project}
 ```
 
-**响应：**
+`{project}` accepts either a numeric ID or slug. A project slug may be omitted
+on create; the server generates the same unique fallback used by Filament.
+Membership inputs are `user_id`/`project_id`, `role`, and `can_view_price`.
 
-```json
-{
-  "message": "Project deleted."
-}
-```
-
----
-
-## 任务
-
-### 列表任务
+## Development logs and updates
 
 ```http
-GET /api/tasks
+GET    /api/dev-logs
+POST   /api/dev-logs
+GET    /api/dev-logs/{dev_log}
+PUT    /api/dev-logs/{dev_log}
+DELETE /api/dev-logs/{dev_log}
+GET    /api/dev-log-updates?dev_log_id=...
+POST   /api/dev-log-updates
+PUT    /api/dev-log-updates/{update}
+DELETE /api/dev-log-updates/{update}
+POST   /api/dev-logs/{dev_log}/updates
+PATCH  /api/dev-logs/{dev_log}/updates/{update}
+POST   /api/projects/{project}/dev-logs/batch
 ```
 
-**Query 参数：**
+The batch endpoint accepts `logs[]` entries with the four fields in the
+`dev_log_batch` relation schema.
 
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| project_id | integer | 否 | 按项目 ID 筛选 |
-| project_slug | string | 否 | 按项目 slug 筛选 |
-| status | string | 否 | `pending` / `confirmed` / `in_progress` / `done` / `accepted` / `rejected` / `changes_requested` |
-| priority | string | 否 | `low` / `medium` / `high` |
-
-### 获取单个任务
+## Tasks, comments, and status actions
 
 ```http
-GET /api/tasks/{task}
-```
-
-### 创建任务
-
-```http
-POST /api/tasks
-```
-
-**Body 参数（`multipart/form-data`）：**}
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| project_id | integer | 与 project_slug 二选一 | 项目 ID |
-| project_slug | string | 与 project_id 二选一 | 项目 slug |
-| title | string | 是 | 任务标题 |
-| description | string | 否 | 任务描述 |
-| priority | string | 否 | `low` / `medium` / `high`，默认 `medium` |
-| status | string | 否 | 默认 `pending` |
-| due_date | string | 否 | 截止日期 `Y-m-d` |
-| created_by | integer | 否 | 委派者 user ID |
-| attachments | file[] | 否 | 附件，每个最大 10MB |
-
-**响应示例：**
-
-```json
-{
-  "id": 1,
-  "project_id": 1,
-  "project_name": "官网改版",
-  "title": "设计首页",
-  "description": "...",
-  "priority": "high",
-  "priority_label": "高",
-  "status": "pending",
-  "status_label": "待确认",
-  "due_date": "2026-08-10",
-  "reject_reason": null,
-  "completed_at": null,
-  "accepted_at": null,
-  "created_by": { "id": 2, "name": "李四" },
-  "attachments": [
-    { "name": "home.png", "url": "https://your-domain.com/storage/task-attachments/xxx.png" }
-  ],
-  "comments": null,
-  "created_at": "2026-08-03T05:42:00.000000Z",
-  "updated_at": "2026-08-03T05:42:00.000000Z"
-}
-```
-
-### 更新任务
-
-```http
-PUT /api/tasks/{task}
-```
-
-**Body 参数：** 标题、描述、优先级、截止日期、created_by 等，均为可选。
-
-### 更新任务状态
-
-```http
-PATCH /api/tasks/{task}/status
-```
-
-**Body 参数：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| action | string | 是 | `confirm` / `reject` / `start` / `restart` / `complete` / `accept` / `request_changes` |
-| reject_reason | string | action=reject 时必填 | 拒绝原因 |
-
-状态流转规则：
-
-- `pending` → `confirmed` / `rejected`
-- `confirmed` → `in_progress`
-- `in_progress` → `done`
-- `done` → `accepted` / `changes_requested`
-- `changes_requested` → `in_progress`
-
-### 删除任务
-
-```http
+GET    /api/tasks
+POST   /api/tasks
+GET    /api/tasks/{task}
+PUT    /api/tasks/{task}
 DELETE /api/tasks/{task}
+PATCH  /api/tasks/{task}/status
+GET    /api/tasks/{task}/comments
+POST   /api/tasks/{task}/comments
+DELETE /api/tasks/{task}/comments/{comment}
+GET    /api/tasks/{task}/attachments/{path}
 ```
 
-### 下载任务附件
+Task status actions are `confirm`, `reject`, `start`, `restart`, and
+`complete`. `reject` requires `reject_reason`. Comment creation is an admin
+workflow and accepts only the comment body, matching the Filament form.
+
+## Issues and contracts
 
 ```http
-GET /api/tasks/{task}/attachments/{path}
-```
-
-`{path}` 为附件存储路径，接口会返回文件下载响应。
-
----
-
-## 问题
-
-### 列表问题
-
-```http
-GET /api/issues
-```
-
-**Query 参数：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| project_id | integer | 否 | 按项目 ID 筛选 |
-| project_slug | string | 否 | 按项目 slug 筛选 |
-| status | string | 否 | `open` / `in_progress` / `resolved` / `closed` |
-| severity | string | 否 | `normal` / `serious` / `blocking` |
-
-### 获取单个问题
-
-```http
-GET /api/issues/{issue}
-```
-
-### 创建问题
-
-```http
-POST /api/issues
-```
-
-**Body 参数（`multipart/form-data`）：**}
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| project_id | integer | 与 project_slug 二选一 | 项目 ID |
-| project_slug | string | 与 project_id 二选一 | 项目 slug |
-| title | string | 是 | 问题标题 |
-| description | string | 否 | 问题描述 |
-| severity | string | 否 | `normal` / `serious` / `blocking`，默认 `normal` |
-| status | string | 否 | 默认 `open` |
-| attachment | file | 否 | 附件，最大 10MB |
-| created_by | integer | 是 | 创建者 admin ID |
-
-### 更新问题
-
-```http
-PUT /api/issues/{issue}
-```
-
-**Body 参数：** 标题、描述、严重程度、附件、created_by 等，均为可选。
-
-### 更新问题状态
-
-```http
-PATCH /api/issues/{issue}/status
-```
-
-**Body 参数：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| status | string | 是 | `in_progress` / `resolved` / `closed` |
-
-状态流转规则：
-
-- `open` → `in_progress`
-- `in_progress` → `resolved`
-- `resolved` → `closed`
-
-### 删除问题
-
-```http
+GET    /api/issues
+POST   /api/issues
+GET    /api/issues/{issue}
+PUT    /api/issues/{issue}
 DELETE /api/issues/{issue}
-```
+PATCH  /api/issues/{issue}/status
+GET    /api/issues/{issue}/attachment
 
-### 下载问题附件
-
-```http
-GET /api/issues/{issue}/attachment
-```
-
----
-
-## 合同
-
-### 列表合同
-
-```http
-GET /api/contracts
-```
-
-**Query 参数：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| project_id | integer | 否 | 按项目 ID 筛选 |
-| project_slug | string | 否 | 按项目 slug 筛选 |
-
-### 获取单个合同
-
-```http
-GET /api/contracts/{contract}
-```
-
-### 上传合同
-
-```http
-POST /api/contracts
-```
-
-**Body 参数（`multipart/form-data`）：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| project_id | integer | 与 project_slug 二选一 | 项目 ID |
-| project_slug | string | 与 project_id 二选一 | 项目 slug |
-| name | string | 是 | 合同名称 |
-| file | file | 是 | 合同文件，最大 50MB |
-| uploaded_by | integer | 是 | 上传者 admin ID |
-
-**响应示例：**
-
-```json
-{
-  "id": 1,
-  "project_id": 1,
-  "project_name": "官网改版",
-  "name": "开发合同.pdf",
-  "file_url": "https://your-domain.com/storage/contracts/xxx.pdf",
-  "uploaded_by": { "id": 1, "name": "管理员" },
-  "created_at": "2026-08-03T05:42:00.000000Z",
-  "updated_at": "2026-08-03T05:42:00.000000Z"
-}
-```
-
-### 更新合同
-
-```http
-PUT /api/contracts/{contract}
-```
-
-**Body 参数：**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| name | string | 否 | 合同名称 |
-| file | file | 否 | 重新上传合同文件 |
-| uploaded_by | integer | 否 | 上传者 admin ID |
-
-### 删除合同
-
-```http
+GET    /api/contracts
+POST   /api/contracts
+GET    /api/contracts/{contract}
+PUT    /api/contracts/{contract}
 DELETE /api/contracts/{contract}
+GET    /api/contracts/{contract}/download
 ```
 
-### 下载合同文件
+Issue actions are `start`, `resolve`, and `close`. Issue status is never
+edited as a field. Contract uploads use the `file` transport key and are
+stored privately; use the authenticated download endpoint.
+
+## Accounts, payments, and invitations
 
 ```http
-GET /api/contracts/{contract}/download
-```
-
-返回文件下载响应。
-
----
-
-## 网站账号
-
-项目下的网站登录账号（一个项目可以有多个账号）。密码在数据库中加密存储，接口返回明文，便于客户端自动填写登录。
-
-### 列表账号
-
-```http
-GET /api/accounts
-```
-
-**Query 参数：**
-
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| project_id | integer | 否 | 按项目过滤 |
-| search | string | 否 | 模糊匹配网站名称 / 用户名 |
-
-**响应示例：**
-
-```json
-{
-  "data": [
-    {
-      "id": 1,
-      "project_id": 3,
-      "project_name": "示例项目",
-      "website_name": "客户后台",
-      "login_url": "https://example.com/login",
-      "username": "boss",
-      "password": "plain-secret",
-      "note": null,
-      "created_at": "2026-08-19T00:00:00.000000Z",
-      "updated_at": "2026-08-19T00:00:00.000000Z"
-    }
-  ],
-  "meta": {
-    "current_page": 1,
-    "last_page": 1,
-    "per_page": 50,
-    "total": 1
-  }
-}
-```
-
-### 创建账号
-
-```http
-POST /api/accounts
-```
-
-**Body 参数：**
-
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| project_id | integer | 是 | 所属项目 ID |
-| website_name | string | 是 | 网站名称 |
-| login_url | string | 是 | 登录地址（URL） |
-| username | string | 是 | 登录用户名 |
-| password | string | 是 | 登录密码（加密存储） |
-| note | string | 否 | 备注 |
-
-成功返回 `201` 与账号对象。
-
-### 查看账号
-
-```http
-GET /api/accounts/{account}
-```
-
-### 更新账号
-
-```http
-PUT /api/accounts/{account}
-PATCH /api/accounts/{account}
-```
-
-字段同创建，均为可选（传什么改什么）。
-
-### 删除账号
-
-```http
+GET    /api/accounts
+POST   /api/accounts
+GET    /api/accounts/{account}
+PUT    /api/accounts/{account}
 DELETE /api/accounts/{account}
+
+GET    /api/projects/{project}/payments
+POST   /api/projects/{project}/payments
+PUT    /api/projects/{project}/payments/{payment}
+DELETE /api/projects/{project}/payments/{payment}
+
+GET    /api/projects/{project}/invitations
+POST   /api/projects/{project}/invitations
+DELETE /api/projects/{project}/invitations/{invitation}
 ```
 
----
+Payments assign the authenticated admin as `created_by` and keep the
+project's computed paid amount synchronized. Invitation tokens are generated
+server-side; responses expose an authenticated `invite_link`, not a token
+input field. Account passwords are encrypted at rest.
 
-## 环境变量
+## Errors
 
-在 `.env` 中配置 API Token：
-
-```env
-DEV_LOG_API_TOKEN=your-existing-dev-log-token
-API_TOKEN=your-new-api-token
-```
-
-建议两者设置为相同值，便于统一管理；或只设置 `API_TOKEN`，原有开发日志接口也会兼容 `DEV_LOG_API_TOKEN`。
-
----
-
-## 错误码
-
-| HTTP 状态码 | 说明 |
-|------------|------|
-| 200 | 成功 |
-| 201 | 创建成功 |
-| 401 | 未认证或 Token 错误 |
-| 404 | 资源不存在 |
-| 422 | 参数校验失败或非法状态流转 |
-| 500 | 服务器错误，如 API Token 未配置 |
+`401` means authentication failed, `404` means the resource or scoped relation
+does not exist, and `422` means validation failed or a requested state
+transition is illegal. Validation responses include an `errors` object.

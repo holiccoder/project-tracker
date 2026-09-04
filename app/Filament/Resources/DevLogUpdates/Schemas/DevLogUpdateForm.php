@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\DevLogUpdates\Schemas;
 
+use App\Support\FilamentInputFactory;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
 use Filament\Schemas\Schema;
 
 class DevLogUpdateForm
@@ -12,22 +12,16 @@ class DevLogUpdateForm
     {
         return $schema
             ->components([
-                Select::make('dev_log_id')
-                    ->label('开发日志')
+                FilamentInputFactory::make('dev_log_updates', 'dev_log_id')
                     ->relationship('devLog', 'content')
                     ->getOptionLabelFromRecordUsing(fn ($record): string => sprintf(
                         '%s - %s',
-                        $record->project?->name ?? '未命名项目',
+                        $record->project?->name ?? 'Unnamed project',
                         str($record->content)->limit(60),
                     ))
                     ->searchable()
-                    ->preload()
-                    ->required(),
-                Textarea::make('update')
-                    ->label('更新内容')
-                    ->rows(6)
-                    ->required()
-                    ->columnSpanFull(),
+                    ->preload(),
+                FilamentInputFactory::make('dev_log_updates', 'update')->columnSpanFull(),
             ]);
     }
 }
